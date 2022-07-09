@@ -66,7 +66,7 @@ fpf = int(strMath(args.frames_per_frame))
 
 if args.dimension != None:
 	s = ''.join(args.dimension.split()).split('x')
-	dims = (int(s[0]/10)*10,int(s[1]/10)*10)
+	dims = (int(s[0])//10*10,int(s[1])//10*10)
 else:
 	dims = None
 
