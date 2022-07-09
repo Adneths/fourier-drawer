@@ -423,10 +423,14 @@ def imageToPath(data, base_density=7, N=-1, showProgress=True):
 def appendFrames(frames, b):
 	np.seterr(divide='ignore')
 	m = frames[-1][-1]-frames[-1][-2]
-	mf = (b-np.roll(b,1))/m
-	mb = (b-np.roll(b,-1))/m
-	mf = abs(np.imag(np.log(mf)))
-	mb = abs(np.imag(np.log(mb)))
+	if m == 0:
+		mf = np.zeros((len(b)))
+		mb = np.zeros((len(b)))
+	else:
+		mf = (b-np.roll(b,1))/m
+		mb = (b-np.roll(b,-1))/m
+		mf = abs(np.imag(np.log(mf)))
+		mb = abs(np.imag(np.log(mb)))
 	d = abs(b-frames[-1][-1])
 	a = np.tile(np.square(d),2) + np.square(np.append(mf,mb))
 	i = np.argmin(a)
