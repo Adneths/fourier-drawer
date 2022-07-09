@@ -1,0 +1,8 @@
+numexpr==2.8.3
+numpy==1.22.4
+Pillow==9.2.0
+potracer==0.0.4
+pyglet==1.5.26
+scikit_video==1.1.11
+scipy==1.8.1
+svgpathtools==1.5.0
