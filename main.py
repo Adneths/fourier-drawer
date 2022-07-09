@@ -1,16 +1,18 @@
 import argparse
 from fourier import *
 
-def strMath(s):
+def strMath(s, var = {}):
 	ops = [{'*': lambda a,b: a*b, '/': lambda a,b: a/b}, {'+': lambda a,b: a+b, '-': lambda a,b: a-b}]
 	s = ''.join(s.split())
-	m = re.findall('(\\+|-|\\*|\\/|[0-9]+(\\.[0-9]+)?|[Pp][Ii])', s)
+	m = re.findall('(\\+|-|\\*|\\/|[0-9]+(\\.[0-9]+)?|[Pp][Ii]|\$\{[a-zA-z]+\})', s)
 	exp = []
 	for sym in m:
 		if sym[0].lower() == 'pi':
 			exp.append(np.pi)
 		elif re.match('\\+|-|\\*|\\/', sym[0]):
 			exp.append(sym[0])
+		elif sym[0][0:2] == '${' and sym[0][-1] == '}':
+			exp.append(var[sym[0][2:-1]])
 		else:
 			exp.append(float(sym[0]))
 	for n in range(2):
@@ -33,16 +35,16 @@ group.add_argument('-b', '--bitmap', action='store_true', help="marks the input 
 group.add_argument('-v', '--video', action='store_true', help="marks the input file as a video type (mp4, avi, mov, etc.)")
 group.add_argument('-p', '--path', action='store_true', help="marks the input file as a .npy (numpy array) file)")
 
-parser.add_argument('-t', '--timescale', type=str, default='1', help='how many seconds video time is 1 second real time (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi)')
-parser.add_argument('-d', '--duration', type=str, default='2*pi', help='the duration of video time to render (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi)')
-parser.add_argument('-tl', '--trail-length', type=str, default='2.1*pi', help='the duration of video time to keep the trail visible (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi)')
+parser.add_argument('-t', '--timescale', type=str, default='1', help='how many seconds video time is 1 second real time (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+parser.add_argument('-d', '--duration', type=str, default='2*pi', help='the duration of video time to render (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+parser.add_argument('-tl', '--trail-length', type=str, default='2.1*pi', help='the duration of video time to keep the trail visible (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('-tf', '--trail-fade', action='store_true', help='whether the tail should fade with time')
 group.add_argument('-ntf', '--no-trail-fade', action='store_false', help='whether the tail should fade with time')
 parser.add_argument('-tc', '--trail-color', type=str, default='#ffff00', help='\'#xxxxxx\' color of the trail as a hexcode')
 parser.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\'color of the vectors as a hexcode')
 parser.add_argument('-fps', type=int, default=60, help='fps of the output video')
-parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi) casted to int')
+parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
 
 parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg, infered using border for path)')
 parser.add_argument('--border', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
@@ -59,10 +61,6 @@ parser.add_argument('--save-path', type=str, default=None, help='saves the path 
 args = parser.parse_args()
 vColor = int(args.vector_color[1:], base=16)
 tColor = int(args.trail_color[1:], base=16)
-timescale = strMath(args.timescale)
-duration = strMath(args.duration)
-trailLength = strMath(args.trail_length)
-fpf = int(strMath(args.frames_per_frame))
 
 if args.dimension != None:
 	s = ''.join(args.dimension.split()).split('x')
@@ -70,6 +68,7 @@ if args.dimension != None:
 else:
 	dims = None
 
+frames = 1
 if args.svg:
 	if dims == None:
 		dims = (800,800)
@@ -97,5 +96,11 @@ if args.info:
 
 if args.save_path != None:
 	np.save(args.save_path, path)
+	
+var = {'frames': frames}
+timescale = strMath(args.timescale, var)
+duration = strMath(args.duration, var)
+trailLength = strMath(args.trail_length, var)
+fpf = int(strMath(args.frames_per_frame, var))
 
 renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output)
