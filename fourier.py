@@ -98,7 +98,7 @@ class World(object):
 			
 			pT = time.time()
 			s = 'XX:XX remaining'
-			dL = max(100,fpf)
+			dL = max(int(100/fpf+1)*fpf,fpf)
 			d100 = [0]*dL
 			tail = 0
 			
