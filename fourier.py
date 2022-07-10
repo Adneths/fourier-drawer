@@ -402,7 +402,7 @@ def imageToPath(data, base_density=7, N=-1, showProgress=True):
 				prev = 2
 		pStrs.append(s+'Z')
 	if len(pStrs) == 0:
-		R = np.sqrt(data.size[0]**2+data.size[1]**2)/2
+		R = np.sqrt(data.shape[0]**2+data.shape[1]**2)/2
 		scale = 300000/(R**2*np.pi)
 		if N < 0:
 			N = 2*np.pi*R * base_density*scale
