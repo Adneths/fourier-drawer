@@ -196,13 +196,15 @@ class World(object):
 
 def getClosestPair(A, B):
 	#Check duplicates
-	AB = np.append(np.unique(A, axis=0), np.unique(B, axis=0), axis=0)
-	ABq, counts = np.unique(AB, axis=0, return_counts=True)
+	AB = np.append(np.unique(A), np.unique(B))
+	ABq, counts = np.unique(AB, return_counts=True)
 	if len(ABq) < len(AB):
 		p = ABq[np.argmax(counts > 1)]
-		return np.argmax(np.sum(A == p, axis=1) == 2), np.argmax(np.sum(B == p, axis=1) == 2), 0
+		return np.argmax(A == p), np.argmax(B == p), 0
 	
-	M = scipy.spatial.distance.cdist(A,B)
+	pA = np.transpose([np.real(A),np.imag(A)])
+	pB = np.transpose([np.real(B),np.imag(B)])
+	M = scipy.spatial.distance.cdist(pA,pB)
 	ind = np.unravel_index(np.argmin(M),M.shape)
 	return ind[0], ind[1], M[ind[0],ind[1]]
 
@@ -214,17 +216,11 @@ def mergePaths(paths, showProgress=True):
 	if showProgress:
 		prog = 0
 		total = len(paths)**2
-	
-	points = [None] * len(paths)
-	totalLen = 0
-	for i in range(len(paths)):
-		points[i] = np.transpose([np.real(paths[i]),np.imag(paths[i])])
-		totalLen += len(paths[i])
 		
-	A = np.zeros((len(points),len(points),3))
-	for i in range(len(points)):
-		for j in range(i+1,len(points)):
-			A[i,j] = getClosestPair(points[i],points[j])
+	A = np.zeros((len(paths),len(paths),3))
+	for i in range(len(paths)):
+		for j in range(i+1,len(paths)):
+			A[i,j] = getClosestPair(paths[i],paths[j])
 			if showProgress:
 				prog+=2
 				printProgressBar(prog/total, 'Optimizing Path')
@@ -272,7 +268,7 @@ def mergePaths(paths, showProgress=True):
 		prev = curr
 		if len(stack) > 0:
 			curr = stack[-1]
-	path = np.empty((totalLen), dtype=np.complex128)
+	path = np.empty((sum([len(p) for p in paths])), dtype=np.complex128)
 	i = 0
 	for intv in inds:
 		intv = [int(i) for i in intv]
