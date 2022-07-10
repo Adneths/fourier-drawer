@@ -83,6 +83,7 @@ elif args.video:
 	path, dims, frames = videoToPath(args.input, abs(args.density), args.points, dims, args.border)
 	path = boundPath(centerPath(path), (dims[0]*args.border,dims[1]*args.border))
 elif args.path:
+	print('Reading path' ,end='')
 	data = np.load(args.input)
 	path = data[2:]
 	dims = (int(np.real(data[1])),int(np.imag(data[1])))
