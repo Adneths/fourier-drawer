@@ -46,7 +46,7 @@ parser.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='
 parser.add_argument('-fps', type=int, default=60, help='fps of the output video')
 parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
 
-parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg, infered using border for path)')
+parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
 parser.add_argument('--border', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--density', type=float, default=2, help='how densely packed are samples of a path')
@@ -55,7 +55,7 @@ group.add_argument('--points', type=int, default=-1, help='how many point in an 
 
 parser.add_argument('--info', action='store_true', help='Prints some info about the sketch')
 
-parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation (dimensions aren\'t saved)')
+parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
 
 
 args = parser.parse_args()
@@ -83,9 +83,11 @@ elif args.video:
 	path, dims, frames = videoToPath(args.input, abs(args.density), args.points, dims, args.border)
 	path = boundPath(centerPath(path), (dims[0]*args.border,dims[1]*args.border))
 elif args.path:
-	path = np.load(args.input)
-	if args.dimension == None:
-		dims = (int((max(np.real(path)) - min(np.real(path))) / args.border / 10)*10, int((max(np.imag(path)) - min(np.imag(path))) / args.border / 10)*10)
+	data = np.load(args.input)
+	path = data[2:]
+	print(data[1])
+	dims = (int(np.real(data[1])),int(np.imag(data[1])))
+	frames = int(np.real(data[0]))
 
 print()
 if args.info:
@@ -95,7 +97,8 @@ if args.info:
 		print('Input frames:', frames)
 
 if args.save_path != None:
-	np.save(args.save_path, path)
+	data = np.append(np.asarray([frames, dims[0] + dims[1]*1j], dtype=np.complex128), path)
+	np.save(args.save_path, data)
 	
 var = {'frames': frames}
 timescale = strMath(args.timescale, var)
