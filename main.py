@@ -85,7 +85,6 @@ elif args.video:
 elif args.path:
 	data = np.load(args.input)
 	path = data[2:]
-	print(data[1])
 	dims = (int(np.real(data[1])),int(np.imag(data[1])))
 	frames = int(np.real(data[0]))
 
