@@ -472,9 +472,9 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9):
 				pT = time.time()
 				s = (total-len(frames))*sum(d60)/60
 				if s < 3600:
-					s = '| {:02}:{:02.0f} remaining      '.format(int((s%3600)/60),s%60)
+					s = '| {:02}:{:02.0f} remaining         '.format(int((s%3600)/60),s%60)
 				else:
-					s = '| {}:{:02}:{:02.0f} remaining      '.format(int(s/3600),int((s%3600)/60),s%60)
+					s = '| {}:{:02}:{:02.0f} remaining         '.format(int(s/3600),int((s%3600)/60),s%60)
 		
 		if total > 0:
 			printProgressBar(len(frames)/total, 'Tracing frames', s)
@@ -483,7 +483,7 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9):
 		if total != -1:
 			t = time.time()
 		
-	printProgressBar(1, 'Tracing frames', '| 00:00 remaining      ')
+	printProgressBar(1, 'Tracing frames', '| 00:00 remaining         ')
 	l = sum([len(f) for f in frames])
 	a = np.empty((l), dtype=np.complex128)
 	i = 0
