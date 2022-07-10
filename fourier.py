@@ -381,7 +381,8 @@ def imageFileToPath(file, base_density=7, N=-1):
 	return imageToPath(np.asarray(Image.open(file)), base_density, N)
 
 def imageToPath(data, base_density=7, N=-1, showProgress=True):
-	data = np.sum(data, axis=2)/data.shape[2]
+	if len(data.shape) == 3:
+		data = np.sum(data, axis=2)/data.shape[2]
 	bmp = potrace.Bitmap(data)
 	potPath = bmp.trace()
 	pStrs = []

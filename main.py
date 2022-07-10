@@ -42,7 +42,7 @@ group = parser.add_mutually_exclusive_group()
 group.add_argument('-tf', '--trail-fade', action='store_true', help='whether the tail should fade with time')
 group.add_argument('-ntf', '--no-trail-fade', action='store_false', help='whether the tail should fade with time')
 parser.add_argument('-tc', '--trail-color', type=str, default='#ffff00', help='\'#xxxxxx\' color of the trail as a hexcode')
-parser.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\'color of the vectors as a hexcode')
+parser.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\' color of the vectors as a hexcode')
 parser.add_argument('-fps', type=int, default=60, help='fps of the output video')
 parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
 
