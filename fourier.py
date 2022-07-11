@@ -89,36 +89,44 @@ class World(object):
 	
 	
 	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out'):
+		print('Preparing render')
 		self.generateTrail()
 		self.vecs = np.append(self.center, self.weights)
-		self.step = np.append(1, ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.dt()}))
+		if fpf > 1:
+			self.skipC = max(1,fpf-1)
+			w = np.tile(np.transpose([np.append(0,self.freqs*1j)]),(1,self.skipC)) * (np.arange(1,self.skipC+1)*self.dt())[None,:]
+			self.stepM = ne.evaluate('exp(w)')
+			self.step = np.transpose(self.stepM[:,0])
+		else:
+			self.step = np.append(1, ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.dt()}))
 		
 		def render():
-			frame = 0
+			save = True
 			
 			pT = time.time()
 			s = 'XX:XX remaining'
-			dL = max(int(100/fpf+1)*fpf,fpf)
-			d100 = [0]*dL
+			d100 = [0]*50
 			tail = 0
 			
 			self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
 			while self.time < duration:
 				t = time.time()
-				self.draw(frame==0)
+				framesPassed = self.draw(save)
+				if fpf > 1:
+					save = not save
+				
 				
 				d100[tail] = time.time()-t
-				tail = (tail+1)%dL
-				frame = (frame+1)%fpf
+				tail = (tail+1)%50
 				if time.time()-pT > 2:
 					pT = time.time()
-					s = (duration-self.time)*60/self.timescale*sum(d100)/dL
+					s = (duration-self.time)/self.dt()/self.skipC*2 * sum(d100)/self.skipC
 					if s < 3600:
-						s = '| {:02}:{:02.0f} remaining'.format(int((s%3600)/60),s%60)
+						s = '| {:02}:{:02.0f} remaining   '.format(int((s%3600)/60),s%60)
 					else:
-						s = '| {}:{:02}:{:02.0f} remaining'.format(int(s/3600),int((s%3600)/60),s%60)
+						s = '| {}:{:02}:{:02.0f} remaining  '.format(int(s/3600),int((s%3600)/60),s%60)
 				printProgressBar(self.time/duration, 'Rendering', s)
-			printProgressBar(1, 'Rendering', '00:00 remaining          ')
+			printProgressBar(1, 'Rendering', '00:00 remaining           ')
 			exit()
 		clock.schedule(lambda dt: render())
 		pyglet.app.run()
@@ -135,17 +143,27 @@ class World(object):
 		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
 	
 	def draw(self, save):
-		self.time += self.dt()
-		
-		if len(self.step) < 300000:
-			self.vecs = self.vecs * self.step
-		else:
-			self.vecs = ne.evaluate('a*b', local_dict = {'a': self.vecs, 'b': self.step})
-			
 		if not save:
-			self.path[self.tail] = ne.evaluate('sum(v)', local_dict = {'v': self.vecs})
-			self.tail = (self.tail+1)%len(self.path)
+			pPath = np.matmul(self.vecs,self.stepM[:,:-1])
+			self.vecs = ne.evaluate('a*b', local_dict = {'a': self.vecs, 'b': self.stepM[:,-1]})
+			pPath = np.append(pPath, ne.evaluate('sum(v)', local_dict = {'v': self.vecs}))
+			self.time += self.dt()*self.skipC
+			
+			if self.tail+len(pPath) >= len(self.path):
+				mid = self.tail+len(pPath) - len(self.path)
+				self.path[self.tail:self.tail+len(pPath)-mid] = pPath[0:len(pPath)-mid]
+				self.path[:mid] = pPath[len(pPath)-mid:]
+				self.tail = mid
+			else:
+				self.path[self.tail:self.tail+len(pPath)] = pPath
+				self.tail = self.tail+len(pPath)
 		else:
+			self.time += self.dt()
+			if len(self.step) < 300000:
+				self.vecs = self.vecs * self.step
+			else:
+				self.vecs = ne.evaluate('a*b', local_dict = {'a': self.vecs, 'b': self.step})
+			
 			vecSum = np.cumsum(self.vecs)
 			self.path[self.tail] = vecSum[-1]
 			self.tail = (self.tail+1)%len(self.path)
@@ -192,7 +210,7 @@ class World(object):
 				im = Image.frombytes('RGBA', self.dims, data)
 				arr = np.flip(np.asarray(im),0)
 				self.writer.writeFrame(arr)
-
+			
 
 def getClosestPair(A, B):
 	#Check duplicates
