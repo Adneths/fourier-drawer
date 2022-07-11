@@ -93,7 +93,7 @@ print()
 if args.info:
 	print('Number of points:', len(path))
 	print('Output dimensions:', dims)
-	if args.video:
+	if frames != 1:
 		print('Input frames:', frames)
 
 if args.save_path != None:
