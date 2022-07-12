@@ -179,19 +179,13 @@ class World(object):
 			
 			glColor3f(self.vecColor[0],self.vecColor[1],self.vecColor[2])
 			glLineWidth(1)
-			array = np.empty((vecSum.size*2))
-			array[0::2] = np.real(vecSum)
-			array[1::2] = np.imag(vecSum)
-			data = (GLfloat * array.size)(*array)
-			glVertexPointer(2, GL_FLOAT, 0, data)
+			data = vecSum.ctypes.data_as(POINTER(c_double))
+			glVertexPointer(2, GL_DOUBLE, 0, data)
 			glDrawArrays(GL_LINE_STRIP, 0, vecSum.size)
 			
 			glLineWidth(1.5)
 			p = np.roll(self.path,-self.tail)
-			array = np.empty((p.size*2))
-			array[0::2] = np.real(p)
-			array[1::2] = np.imag(p)
-			data = (GLfloat * array.size)(*array)
+			data = p.ctypes.data_as(POINTER(c_double))
 			glEnable(GL_BLEND)
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			if self.pathFade:
@@ -199,7 +193,7 @@ class World(object):
 				glColorPointer(4, GL_FLOAT, 0, self.pathColorArr)
 			else:
 				glColor3f(self.pathColor[0],self.pathColor[1],self.pathColor[2])
-			glVertexPointer(2, GL_FLOAT, 0, data)
+			glVertexPointer(2, GL_DOUBLE, 0, data)
 			glDrawArrays(GL_LINE_STRIP, 0, p.size)
 			glDisableClientState(GL_COLOR_ARRAY)
 			glDisable(GL_BLEND)
@@ -210,7 +204,6 @@ class World(object):
 				im = Image.frombytes('RGBA', self.dims, data)
 				arr = np.flip(np.asarray(im),0)
 				self.writer.writeFrame(arr)
-			
 
 def getClosestPair(A, B):
 	#Check duplicates
