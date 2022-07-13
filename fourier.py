@@ -33,7 +33,6 @@ class World(object):
 		self.weights = np.asarray(self.weights)
 		self.freqs = np.asarray(self.freqs)
 		
-		self.center = (dims[0]/2) + (dims[1]/2)*1j
 		self.time = 0
 		self.cutIndex = 0
 		
@@ -73,14 +72,14 @@ class World(object):
 	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out'):
 		print('Preparing render')
 		self.generateTrail()
-		self.vecs = self.weights
+		self.vecs = np.append(0,self.weights)
 		self.skipC = max(1,fpf-1)
 		if fpf > 1:
-			w = np.tile(np.transpose([self.freqs*1j]),(1,self.skipC)) * (np.arange(1,self.skipC+1)*self.dt())[None,:]
+			w = np.tile(np.transpose([np.append(0,self.freqs*1j)]),(1,self.skipC)) * (np.arange(1,self.skipC+1)*self.dt())[None,:]
 			self.stepM = ne.evaluate('exp(w)')
 			self.step = np.transpose(self.stepM[:,0])
 		else:
-			self.step = ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.dt()})
+			self.step = ne.evaluate('exp(1j*k*t)', local_dict = {'k': np.append(0,self.freqs), 't': self.dt()})
 		
 		#Initialize GL
 		if not glfw.init():
@@ -126,7 +125,7 @@ class World(object):
 			tail = (tail+1)%50
 			if time.time()-pT > 2:
 				pT = time.time()
-				s = (duration-self.time)/self.dt()/self.skipC*2 * sum(d100)/self.skipC
+				s = (duration-self.time)/self.dt()/self.skipC*2 * sum(d100)/50
 				if s < 3600:
 					s = '| {:02}:{:02.0f} remaining   '.format(int((s%3600)/60),s%60)
 				else:
