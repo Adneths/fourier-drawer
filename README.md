@@ -3,6 +3,9 @@
 <img src="./assets/title.gif" width="95%">
 </div>
 
+## Requires
+- ffmpeg [download](https://ffmpeg.org/download.html)
+
 ## Usage
 ```
 python main.py [-h] -i INPUT [-o OUTPUT] (-s | -b | -v | -p) [-t TIMESCALE] [-d DURATION]
@@ -57,7 +60,7 @@ Note:
 ## Examples
 
 <div align="center">
-<img src="./assets/e0.gif" width="40%">
+<img src="./assets/e0.gif" width="400vw">
 </div>
 
 ```
@@ -65,8 +68,8 @@ python main.py -i sample\yt.svg -s -o sample\yt -t 1/2 -fpf 1 -d 3*pi --density 
 ```
 
 <div align="center">
-<img src="./assets/e1.gif" width="35%">
-<img src="./assets/e2.gif" width="35%">
+<img src="./assets/e1.gif" width="350vw">
+<img src="./assets/e2.gif" width="350vw">
 </div>
 
 ```
@@ -75,7 +78,7 @@ python main.py -i sample\grass.png -b -o sample\grass -t 1/8 -fpf 2 -d 3*pi -tl 
 ```
 
 <div align="center">
-<img src="./assets/e3.gif" width="80%">
+<img src="./assets/e3.gif" width="800vw">
 </div>
 
 ```
