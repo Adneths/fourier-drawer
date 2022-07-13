@@ -69,7 +69,7 @@ class World(object):
 		self.pathColorArr = (GLfloat * self.pathColorArr.size)(*self.pathColorArr)
 	
 	
-	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out'):
+	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False):
 		print('Preparing render')
 		self.generateTrail()
 		self.vecs = np.append(0,self.weights)
@@ -89,6 +89,7 @@ class World(object):
 			glfw.terminate()
 			return
 		glfw.make_context_current(window)
+		glfw.set_window_attrib(window, glfw.RESIZABLE , glfw.FALSE);
 		
 		#Setup GL
 		glEnableClientState(GL_VERTEX_ARRAY)
@@ -115,6 +116,8 @@ class World(object):
 		while self.time < duration and not glfw.window_should_close(window):
 			t = time.time()
 			self.draw(save)
+			if show:
+				self.display()
 			glfw.swap_buffers(window)
 			glfw.poll_events()
 			

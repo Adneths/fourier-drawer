@@ -48,6 +48,7 @@ Path Options
 
 Miscellaneous Options
   --info                		Prints some info about the sketch
+  --show                		Display the sketch during rendering
   --save-path SAVE_PATH 		saves the path in a file to save recomputation
 					(dimensions aren't saved but infered on load)
 

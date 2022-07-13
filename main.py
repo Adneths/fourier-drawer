@@ -54,6 +54,7 @@ group.add_argument('--points', type=int, default=-1, help='how many point in an 
 
 
 parser.add_argument('--info', action='store_true', help='Prints some info about the sketch')
+parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
 
 parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
 
@@ -106,4 +107,4 @@ duration = strMath(args.duration, var)
 trailLength = strMath(args.trail_length, var)
 fpf = int(strMath(args.frames_per_frame, var))
 
-renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output)
+renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show)
