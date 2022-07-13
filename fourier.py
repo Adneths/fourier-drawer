@@ -92,8 +92,8 @@ class World(object):
 		print('Preparing render')
 		self.generateTrail()
 		self.vecs = np.append(self.center, self.weights)
+		self.skipC = max(1,fpf-1)
 		if fpf > 1:
-			self.skipC = max(1,fpf-1)
 			w = np.tile(np.transpose([np.append(0,self.freqs*1j)]),(1,self.skipC)) * (np.arange(1,self.skipC+1)*self.dt())[None,:]
 			self.stepM = ne.evaluate('exp(w)')
 			self.step = np.transpose(self.stepM[:,0])
