@@ -1,0 +1,2 @@
+cuda_python==11.7.1
+cupy==10.6.0
