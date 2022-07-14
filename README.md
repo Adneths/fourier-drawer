@@ -4,7 +4,18 @@
 </div>
 
 ## Requires
+- Python3
 - ffmpeg [download](https://ffmpeg.org/download.html)
+
+## Installation
+1. Install the above requirements
+2. Clone/download this repository
+3. Run `pip install -r requirements.txt`
+
+### Installation for Cuda
+Requires a Cuda compatable GPU
+1. Follow instructions [here](https://docs.cupy.dev/en/stable/install.html) to install the proper version of cupy
+2. Run `pip install -r requirements_cuda.txt`
 
 ## Usage
 ```
@@ -41,6 +52,8 @@ Rendering Options
 					or 800x800 for svg, infered using border for path)
 
   --border BORDER       		percentage (as a float) of border between the path and screen
+  
+  -g GPU, --gpu GPU			Use Cuda to accelerate rendering process (use a number to specify a gpu or * for any)
   
 Path Options
   --density DENSITY     		how densely packed are samples of a path
