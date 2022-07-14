@@ -1,5 +1,5 @@
 import argparse
-from fourier import *
+from libs.path import *
 
 def strMath(s, var = {}):
 	ops = [{'*': lambda a,b: a*b, '/': lambda a,b: a/b}, {'+': lambda a,b: a+b, '-': lambda a,b: a-b}]
@@ -45,6 +45,7 @@ parser.add_argument('-tc', '--trail-color', type=str, default='#ffff00', help='\
 parser.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\' color of the vectors as a hexcode')
 parser.add_argument('-fps', type=int, default=60, help='fps of the output video')
 parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
+parser.add_argument('-g', '--gpu', type=str, default=None, help='Use Cuda to accelerate rendering process (use a number to specify a gpu or * for any)')
 
 parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
 parser.add_argument('--border', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
@@ -54,6 +55,7 @@ group.add_argument('--points', type=int, default=-1, help='how many point in an 
 
 
 parser.add_argument('--info', action='store_true', help='Prints some info about the sketch')
+parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
 
 parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
 
@@ -106,4 +108,13 @@ duration = strMath(args.duration, var)
 trailLength = strMath(args.trail_length, var)
 fpf = int(strMath(args.frames_per_frame, var))
 
-renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output)
+if args.gpu != None:
+	from libs.render_cuda import renderPath
+	if args.gpu == '*':
+		gpu = None
+	else:
+		gpu = int(args.gpu)
+	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, gpu)
+else:
+	from libs.render import renderPath
+	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show)

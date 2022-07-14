@@ -1,216 +1,16 @@
-import pyglet
-from pyglet.gl import *
-from pyglet import clock
-from ctypes import *
-
 import numpy as np
-import numexpr as ne
 import scipy
-from collections import deque
+
 from svgpathtools import parse_path
 import xml.etree.ElementTree as ET
 from PIL import Image
-import skvideo.io
-import re
 import potrace
-from PIL import Image
+
+import re
 import subprocess
 import time
 
-def printProgressBar(percentage, prefix = '', suffix='', decimals = 1, length = 40):
-	percent = ("{0:." + str(decimals) + "f}").format(100*percentage)
-	fill = int(length * percentage)
-	bar = '█' * fill + '-' * (length - fill)
-	print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = '')
-
-class World(object):
-	CYCLE_DURATION = 2*np.pi
-	CYCLE_DURATION_EXT = 2.1*np.pi
-
-	def __init__(self, weights, freqs, dims=(800,800)):
-		window = pyglet.window.Window(dims[0], dims[1])
-		window.minimize()
-		
-		self.dims = dims
-		self.weights, self.freqs = zip(*sorted(zip(weights,freqs), key=lambda pair: -abs(pair[0])))
-		self.weights = np.asarray(self.weights)
-		self.freqs = np.asarray(self.freqs)
-		
-		
-		self.center = (dims[0]/2) + (dims[1]/2)*1j
-		self.time = 0
-		self.cutIndex = 0
-		
-		self.setVectorColor(0xffffff)
-		self.setPathColor(0xffff00)
-		self.setPathFade(True)
-		self.configTime(1)
-		self.configTrail(self.CYCLE_DURATION_EXT)
-		
-		glEnableClientState(GL_VERTEX_ARRAY)
-		self.fbo = GLuint(0)
-		glGenFramebuffers(1, pointer(self.fbo))
-		
-		colorBuffer = GLuint(0)
-		glGenRenderbuffers(1, pointer(colorBuffer))
-		
-		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
-		glBindRenderbuffer(GL_RENDERBUFFER, colorBuffer)
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, dims[0], dims[1])
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorBuffer)
-		
-		self.writer = None
-	
-	def configTime(self, timescale):
-		self.timescale = timescale
-		
-	def configTrail(self, trailDuration):
-		self.trailDuration = trailDuration
-		
-	def setVectorColor(self, hexCode):
-		self.vecColor = (((hexCode>>16)&0xff)/255,((hexCode>>8)&0xff)/255,((hexCode)&0xff)/255)
-		
-	def setPathColor(self, hexCode):
-		self.pathColor = (((hexCode>>16)&0xff)/255,((hexCode>>8)&0xff)/255,((hexCode)&0xff)/255)
-		
-	def setPathFade(self, fade):
-		self.pathFade = fade
-	
-	
-	def generateTrail(self):
-		self.path = np.full((int(self.trailDuration*60/self.timescale)), np.sum(np.append(self.center, self.weights * ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.time}))), dtype=np.complex128)
-		self.tail = 0
-		self.generatePathColorArray()
-	
-	def generatePathColorArray(self):
-		self.pathColorArr = np.tile([self.pathColor[0],self.pathColor[1],self.pathColor[2],0],self.path.size)
-		self.pathColorArr[3::4] = np.linspace(0,1,self.path.size)
-		self.pathColorArr = (GLfloat * self.pathColorArr.size)(*self.pathColorArr)
-	
-	
-	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out'):
-		print('Preparing render')
-		self.generateTrail()
-		self.vecs = np.append(self.center, self.weights)
-		if fpf > 1:
-			self.skipC = max(1,fpf-1)
-			w = np.tile(np.transpose([np.append(0,self.freqs*1j)]),(1,self.skipC)) * (np.arange(1,self.skipC+1)*self.dt())[None,:]
-			self.stepM = ne.evaluate('exp(w)')
-			self.step = np.transpose(self.stepM[:,0])
-		else:
-			self.step = np.append(1, ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.dt()}))
-		
-		def render():
-			save = True
-			
-			pT = time.time()
-			s = 'XX:XX remaining'
-			d100 = [0]*50
-			tail = 0
-			
-			self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
-			while self.time < duration:
-				t = time.time()
-				framesPassed = self.draw(save)
-				if fpf > 1:
-					save = not save
-				
-				
-				d100[tail] = time.time()-t
-				tail = (tail+1)%50
-				if time.time()-pT > 2:
-					pT = time.time()
-					s = (duration-self.time)/self.dt()/self.skipC*2 * sum(d100)/self.skipC
-					if s < 3600:
-						s = '| {:02}:{:02.0f} remaining   '.format(int((s%3600)/60),s%60)
-					else:
-						s = '| {}:{:02}:{:02.0f} remaining  '.format(int(s/3600),int((s%3600)/60),s%60)
-				printProgressBar(self.time/duration, 'Rendering', s)
-			printProgressBar(1, 'Rendering', '00:00 remaining           ')
-			exit()
-		clock.schedule(lambda dt: render())
-		pyglet.app.run()
-	
-	def dt(self):
-		return 1/60 * self.timescale
-	
-	
-	def display(self):
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, self.fbo)
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
-		glClear(GL_COLOR_BUFFER_BIT)
-		glBlitFramebuffer(0, 0, self.dims[0], self.dims[1], 0, 0, self.dims[0], self.dims[1], GL_COLOR_BUFFER_BIT, GL_NEAREST)
-		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
-	
-	def draw(self, save):
-		if not save:
-			pPath = np.matmul(self.vecs,self.stepM[:,:-1])
-			self.vecs = ne.evaluate('a*b', local_dict = {'a': self.vecs, 'b': self.stepM[:,-1]})
-			pPath = np.append(pPath, ne.evaluate('sum(v)', local_dict = {'v': self.vecs}))
-			self.time += self.dt()*self.skipC
-			
-			if self.tail+len(pPath) >= len(self.path):
-				mid = self.tail+len(pPath) - len(self.path)
-				self.path[self.tail:self.tail+len(pPath)-mid] = pPath[0:len(pPath)-mid]
-				self.path[:mid] = pPath[len(pPath)-mid:]
-				self.tail = mid
-			else:
-				self.path[self.tail:self.tail+len(pPath)] = pPath
-				self.tail = self.tail+len(pPath)
-		else:
-			self.time += self.dt()
-			if len(self.step) < 300000:
-				self.vecs = self.vecs * self.step
-			else:
-				self.vecs = ne.evaluate('a*b', local_dict = {'a': self.vecs, 'b': self.step})
-			
-			vecSum = np.cumsum(self.vecs)
-			self.path[self.tail] = vecSum[-1]
-			self.tail = (self.tail+1)%len(self.path)
-			
-			cutIndex = np.argmax(abs(vecSum-vecSum[-1])<1)
-			if self.cutIndex < cutIndex:
-				self.cutIndex = cutIndex
-			vecSum = vecSum[0:self.cutIndex]
-		
-		
-			glClear(GL_COLOR_BUFFER_BIT)
-			glLoadIdentity()
-			
-			glColor3f(self.vecColor[0],self.vecColor[1],self.vecColor[2])
-			glLineWidth(1)
-			array = np.empty((vecSum.size*2))
-			array[0::2] = np.real(vecSum)
-			array[1::2] = np.imag(vecSum)
-			data = (GLfloat * array.size)(*array)
-			glVertexPointer(2, GL_FLOAT, 0, data)
-			glDrawArrays(GL_LINE_STRIP, 0, vecSum.size)
-			
-			glLineWidth(1.5)
-			p = np.roll(self.path,-self.tail)
-			array = np.empty((p.size*2))
-			array[0::2] = np.real(p)
-			array[1::2] = np.imag(p)
-			data = (GLfloat * array.size)(*array)
-			glEnable(GL_BLEND)
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			if self.pathFade:
-				glEnableClientState(GL_COLOR_ARRAY)
-				glColorPointer(4, GL_FLOAT, 0, self.pathColorArr)
-			else:
-				glColor3f(self.pathColor[0],self.pathColor[1],self.pathColor[2])
-			glVertexPointer(2, GL_FLOAT, 0, data)
-			glDrawArrays(GL_LINE_STRIP, 0, p.size)
-			glDisableClientState(GL_COLOR_ARRAY)
-			glDisable(GL_BLEND)
-			
-			if self.writer != None:
-				data = (GLubyte * (self.dims[0] * self.dims[1] * len('RGBA')))()
-				glReadPixels(0, 0, self.dims[0], self.dims[1], GL_RGBA, GL_UNSIGNED_BYTE, pointer(data))
-				im = Image.frombytes('RGBA', self.dims, data)
-				arr = np.flip(np.asarray(im),0)
-				self.writer.writeFrame(arr)
-			
+from .util import printProgressBar
 
 def getClosestPair(A, B):
 	#Check duplicates
@@ -333,6 +133,12 @@ def centerPath(path):
 	yMax = max(np.imag(path))
 	yMin = min(np.imag(path))
 	return path + ((xMax-xMin)/2-xMax) + 1j*((yMax-yMin)/2-yMax)
+	
+def boundPath(path, dims):
+	w = max(np.real(path))-min(np.real(path))
+	h = max(np.imag(path))-min(np.imag(path))
+	s = min(dims[0]/w,dims[1]/h)
+	return path*s
 
 def svgToPath(file, base_density=7, N=-1):
 	tree = ET.parse(file)
@@ -373,27 +179,6 @@ def svgToPathHelper(list, root, tran, scal, tLen, namespace, base_density, N):
 				points = points + tran[0] - 1j*tran[1]
 				list.append(points)
 		svgToPathHelper(list, child, tran, scal, tLen, namespace, base_density, N)
-	
-
-
-def boundPath(path, dims):
-	w = max(np.real(path))-min(np.real(path))
-	h = max(np.imag(path))-min(np.imag(path))
-	s = min(dims[0]/w,dims[1]/h)
-	return path*s
-
-def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output):
-	N = len(path)
-	X = np.fft.fft(path)
-	freqs = np.append(np.arange(0,int(N/2)),np.arange(-int(np.ceil(N/2)),0))
-	
-	world = World(X/N,freqs,dims)
-	world.configTime(timescale)
-	world.configTrail(trailLength)
-	world.setPathFade(trailFade)
-	world.setPathColor(trailColor)
-	world.setVectorColor(vectorColor)
-	world.render(fps=fps,duration=duration,fpf=fpf,output=output)
 
 def imageFileToPath(file, base_density=7, N=-1):
 	return imageToPath(np.asarray(Image.open(file)), base_density, N)
