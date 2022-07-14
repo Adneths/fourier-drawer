@@ -120,7 +120,9 @@ class World(object):
 			tail = (tail+1)%50
 			if time.time()-pT > 2:
 				pT = time.time()
-				s = (duration-self.time)/self.dt()/self.skipC*2 * sum(d100)/50
+				s = (duration-self.time)/self.dt()/fpf * sum(d100)/50
+				if fpf > 1:
+					s*=2
 				if s < 3600:
 					s = '| {:02}:{:02.0f} remaining   '.format(int((s%3600)/60),s%60)
 				else:
