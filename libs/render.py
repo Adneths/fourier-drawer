@@ -207,12 +207,13 @@ class World(object):
 			glDisable(GL_BLEND)
 			
 			if self.writer != None:
-				data = (GLubyte * (self.dims[0] * self.dims[1] * len('RGBA')))()
-				glReadPixels(0, 0, self.dims[0], self.dims[1], GL_RGBA, GL_UNSIGNED_BYTE, data)
-				im = Image.frombytes('RGBA', self.dims, data)
-				arr = np.flip(np.asarray(im),0)
-				self.writer.writeFrame(arr)
-
+				self.saveFrame()
+				
+	def saveFrame(self):
+		data = (GLubyte * (self.dims[0] * self.dims[1] * len('RGBA')))()
+		glReadPixels(0, 0, self.dims[0], self.dims[1], GL_RGBA, GL_UNSIGNED_BYTE, data)
+		arr = np.flip(np.reshape(np.frombuffer(data, dtype=np.ubyte, count=self.dims[0] * self.dims[1] * len('RGBA')), (self.dims[0], self.dims[1], 4)),0)
+		self.writer.writeFrame(arr)
 
 def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show):
 	N = len(path)
