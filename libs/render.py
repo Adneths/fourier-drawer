@@ -74,12 +74,15 @@ class World(object):
 		#Initialize GL
 		if not glfw.init():
 			return
+			
+		if not show:
+			glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
 		window = glfw.create_window(self.dims[0], self.dims[1], "fourier-drawer", None, None)
 		if not window:
 			glfw.terminate()
 			return
 		glfw.make_context_current(window)
-		glfw.set_window_attrib(window, glfw.RESIZABLE , glfw.FALSE);
+		glfw.set_window_attrib(window, glfw.RESIZABLE , glfw.FALSE)
 		
 		#Setup GL
 		glEnableClientState(GL_VERTEX_ARRAY)
