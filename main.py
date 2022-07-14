@@ -1,5 +1,6 @@
 import argparse
-from fourier import *
+from libs.path import *
+from libs.render import renderPath
 
 def strMath(s, var = {}):
 	ops = [{'*': lambda a,b: a*b, '/': lambda a,b: a/b}, {'+': lambda a,b: a+b, '-': lambda a,b: a-b}]
