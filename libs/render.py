@@ -49,7 +49,7 @@ class World(object):
 	
 	
 	def generateTrail(self):
-		self.path = np.full((int(self.trailDuration*60/self.timescale)), np.sum(self.weights * ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.time})), dtype=np.complex128)
+		self.path = np.full((int(self.trailDuration*60/self.timescale)), ne.evaluate('sum(v)', local_dict = {'v': self.weights}), dtype=np.complex128)
 		self.tail = 0
 		self.generatePathColorArray()
 	
