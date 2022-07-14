@@ -129,11 +129,9 @@ class CudaWorld(World):
 		self.buffer_path = CudaOpenGLMappedArray(np.complex128, (self.pathLength), VBO_path, flags)
 		with self.buffer_path as V:
 			V[:] = cp.full((self.pathLength), np.sum(self.weights * ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.time})), dtype=np.complex128)
-		
 
 		self.vecs = cp.append(0,cp.asarray(self.weights))
-		w = cp.tile(cp.reshape(cp.append(0,cp.asarray(self.freqs)*1j),(self.vecLength,1)),(1,self.skipC)) * (cp.arange(1,self.skipC+1)*self.dt())[None,:]
-		self.stepM = cp.exp(w)
+		self.stepM = cp.exp(cp.tile(cp.reshape(cp.append(0,cp.asarray(self.freqs)*1j),(self.vecLength,1)),(1,self.skipC)) * (cp.arange(1,self.skipC+1)*self.dt())[None,:])
 		
 		self.cutIndex = 0
 		save = True
