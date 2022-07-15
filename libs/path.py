@@ -6,14 +6,13 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 import potrace
 
-from ctypes import *
 import re
 import subprocess
 import time
 
 from .util import printProgressBar
 
-def getClosestPair(A, B, cLib):
+def getClosestPair(A, B):
 	#Check duplicates
 	AB = np.append(np.unique(A), np.unique(B))
 	ABq, counts = np.unique(AB, return_counts=True)
@@ -21,20 +20,17 @@ def getClosestPair(A, B, cLib):
 		p = ABq[np.argmax(counts > 1)]
 		return np.argmax(A == p), np.argmax(B == p), 0
 	
-	if len(AB) < 3000 or cLib == None:
-		pA = np.transpose([np.real(A),np.imag(A)])
-		pB = np.transpose([np.real(B),np.imag(B)])
-		M = scipy.spatial.distance.cdist(pA,pB)
-		ind = np.unravel_index(np.argmin(M),M.shape)
-		return ind[0], ind[1], M[ind[0],ind[1]]
-	else:
-		return cLib.findClosest(len(A), A.ctypes.data_as(POINTER(c_ulonglong)), len(B), B.ctypes.data_as(POINTER(c_ulonglong)))
+	pA = np.transpose([np.real(A),np.imag(A)])
+	pB = np.transpose([np.real(B),np.imag(B)])
+	M = scipy.spatial.distance.cdist(pA,pB)
+	ind = np.unravel_index(np.argmin(M),M.shape)
+	return ind[0], ind[1], M[ind[0],ind[1]]
 
 def minMax(a,b):
 	if a > b:
 		return b, a
 	return a, b
-def mergePaths(paths, showProgress=True, cLib=None):
+def mergePaths(paths, showProgress=True):
 	if showProgress:
 		prog = 0
 		total = len(paths)**2
@@ -42,7 +38,7 @@ def mergePaths(paths, showProgress=True, cLib=None):
 	A = np.zeros((len(paths),len(paths),3))
 	for i in range(len(paths)):
 		for j in range(i+1,len(paths)):
-			A[i,j] = getClosestPair(paths[i],paths[j], cLib)
+			A[i,j] = getClosestPair(paths[i],paths[j])
 			if showProgress:
 				prog+=2
 				printProgressBar(prog/total, 'Optimizing Path')
@@ -144,14 +140,14 @@ def boundPath(path, dims):
 	s = min(dims[0]/w,dims[1]/h)
 	return path*s
 
-def svgToPath(file, base_density=7, N=-1, cLib=None):
+def svgToPath(file, base_density=7, N=-1):
 	tree = ET.parse(file)
 	root = tree.getroot()
 	namespace = get_namespace(tree.getroot())
 	paths = []
 	tLen = svgToPathCountLen(root, (0,0), (1,1), namespace)
 	svgToPathHelper(paths, root, (0,0), (1,1), tLen, namespace, base_density, N)
-	return mergePaths(paths, cLib=cLib)
+	return mergePaths(paths)
 def svgToPathCountLen(root, tran, scal, namespace):
 	if 'transform' in root.attrib:
 		t = getTranslation(root.attrib['transform'])
@@ -184,10 +180,10 @@ def svgToPathHelper(list, root, tran, scal, tLen, namespace, base_density, N):
 				list.append(points)
 		svgToPathHelper(list, child, tran, scal, tLen, namespace, base_density, N)
 
-def imageFileToPath(file, base_density=7, N=-1, cLib=None):
-	return imageToPath(np.asarray(Image.open(file)), base_density, N, cLib=cLib)
+def imageFileToPath(file, base_density=7, N=-1):
+	return imageToPath(np.asarray(Image.open(file)), base_density, N)
 
-def imageToPath(data, base_density=7, N=-1, showProgress=True, cLib=None):
+def imageToPath(data, base_density=7, N=-1, showProgress=True):
 	if len(data.shape) == 3:
 		data = np.sum(data, axis=2)/data.shape[2]
 	bmp = potrace.Bitmap(data)
@@ -222,7 +218,7 @@ def imageToPath(data, base_density=7, N=-1, showProgress=True, cLib=None):
 		for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
 			points = pathToPoints(p, density=base_density*scale, N=int(N*p.length()/tLen))
 			paths.append(points)
-		return mergePaths(paths, showProgress, cLib=cLib)
+		return mergePaths(paths,showProgress)
 
 def appendFrames(frames, b):
 	np.seterr(divide='ignore')
@@ -243,7 +239,7 @@ def appendFrames(frames, b):
 	else:
 		frames.append(np.roll(np.flip(b),i-len(b)))
 
-def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, cLib=None):
+def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9):
 	print('Preparing video')
 	output = subprocess.check_output('ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -print_format csv \"{}\"'.format(file))
 	m = re.search('stream,([0-9]+)', str(output))
@@ -266,7 +262,7 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, cLib=None):
 		count+=1
 		if dims == None:
 			dims = (frame.shape[1],frame.shape[0])
-		path = imageToPath(frame, base_density, N, False, cLib=cLib)
+		path = imageToPath(frame, base_density, N, False)
 		if len(frames) == 0:
 			frames.append(path)
 		else:

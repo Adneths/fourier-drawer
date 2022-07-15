@@ -59,17 +59,6 @@ parser.add_argument('--show', action='store_true', help='Display the sketch duri
 
 parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
 
-from ctypes import *
-try:
-	import sys
-	import os
-	dir, file = os.path.split(sys.argv[0])
-	cLib = PyDLL(os.path.join(dir,'libs','cpp','lib.dll'),winmode=0)
-	cLib.findClosest.argtypes = [c_int, POINTER(c_ulonglong), c_int, POINTER(c_ulonglong)]
-	cLib.findClosest.restype = py_object
-except:
-	print('Warn: Could not load lib.dll')
-	cLib = None
 
 args = parser.parse_args()
 vColor = int(args.vector_color[1:], base=16)
@@ -85,15 +74,15 @@ frames = 1
 if args.svg:
 	if dims == None:
 		dims = (800,800)
-	path = boundPath(centerPath(svgToPath(args.input, abs(args.density), args.points, cLib=cLib)), (dims[0]*args.border,dims[1]*args.border))
+	path = boundPath(centerPath(svgToPath(args.input, abs(args.density), args.points)), (dims[0]*args.border,dims[1]*args.border))
 elif args.bitmap:
 	if dims == None:
 		size = Image.open(args.input).size
 		dims = (int(size[0]/10)*10,int(size[1]/10)*10)
 	print('Tracing image')
-	path = boundPath(centerPath(imageFileToPath(args.input, abs(args.density), args.points, cLib=cLib)), (dims[0]*args.border,dims[1]*args.border))
+	path = boundPath(centerPath(imageFileToPath(args.input, abs(args.density), args.points)), (dims[0]*args.border,dims[1]*args.border))
 elif args.video:
-	path, dims, frames = videoToPath(args.input, abs(args.density), args.points, dims, args.border, cLib=cLib)
+	path, dims, frames = videoToPath(args.input, abs(args.density), args.points, dims, args.border)
 	path = boundPath(centerPath(path), (dims[0]*args.border,dims[1]*args.border))
 elif args.path:
 	print('Reading path' ,end='')
