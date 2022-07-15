@@ -12,6 +12,18 @@ import time
 
 from .util import printProgressBar
 
+try:
+	import sys
+	import os
+	dir, file = os.path.split(sys.argv[0])
+	cLib = PyDLL(os.path.join(dir,'cpp','lib.dll'),winmode=0)
+	cLib.findClosest.argtypes = [c_int, POINTER(c_ulonglong), c_int, POINTER(c_ulonglong)]
+	cLib.findClosest.restype = py_object
+except:
+	print('Warn: Could not load lib.dll')
+	cLib = None
+
+
 def getClosestPair(A, B):
 	#Check duplicates
 	AB = np.append(np.unique(A), np.unique(B))
@@ -20,11 +32,15 @@ def getClosestPair(A, B):
 		p = ABq[np.argmax(counts > 1)]
 		return np.argmax(A == p), np.argmax(B == p), 0
 	
-	pA = np.transpose([np.real(A),np.imag(A)])
-	pB = np.transpose([np.real(B),np.imag(B)])
-	M = scipy.spatial.distance.cdist(pA,pB)
-	ind = np.unravel_index(np.argmin(M),M.shape)
-	return ind[0], ind[1], M[ind[0],ind[1]]
+	if cLib == None:
+		pA = np.transpose([np.real(A),np.imag(A)])
+		pB = np.transpose([np.real(B),np.imag(B)])
+		M = scipy.spatial.distance.cdist(pA,pB)
+		ind = np.unravel_index(np.argmin(M),M.shape)
+		return ind[0], ind[1], M[ind[0],ind[1]]
+	else:
+		print('e')
+		return cLib.findClosest(len(A), A.ctypes.data_as(POINTER(c_ulonglong)), len(B), B.ctypes.data_as(POINTER(c_ulonglong)))
 
 def minMax(a,b):
 	if a > b:
