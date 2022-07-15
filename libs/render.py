@@ -169,11 +169,11 @@ class World(object):
 			self.path[self.tail] = vecSum[-1]
 			self.tail = (self.tail+1)%len(self.path)
 			
-			cutIndex = np.argmax(abs(vecSum-vecSum[-1])<1)
+			cutIndex = np.argmax(abs(vecSum-vecSum[-1])<1)+1
 			if self.cutIndex < cutIndex:
 				self.cutIndex = cutIndex
 			vecSum = vecSum[0:self.cutIndex]
-		
+			
 		
 			glClear(GL_COLOR_BUFFER_BIT)
 			glLoadIdentity()
