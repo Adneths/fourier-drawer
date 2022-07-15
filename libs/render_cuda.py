@@ -186,7 +186,7 @@ class CudaWorld(World):
 				a = self.stepM[:,0]
 				self.vecs = self.vecs*self.stepM[:,0]
 				vecSum = cp.cumsum(self.vecs)
-				cutIndex = cp.argmax(abs(vecSum-vecSum[-1])<1)
+				cutIndex = cp.argmax(abs(vecSum-vecSum[-1])<1)+1
 				if self.cutIndex < cutIndex:
 					self.cutIndex = cutIndex
 				V[0:self.cutIndex] = vecSum[0:self.cutIndex]
