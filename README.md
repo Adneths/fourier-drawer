@@ -3,6 +3,20 @@
 <img src="./assets/title.gif" width="95%">
 </div>
 
+## Requires
+- Python3
+- ffmpeg [download](https://ffmpeg.org/download.html)
+
+## Installation
+1. Install the above requirements
+2. Clone/download this repository
+3. Run `pip install -r requirements.txt`
+
+### Installation for Cuda
+Requires a Cuda compatable GPU
+1. Follow instructions [here](https://docs.cupy.dev/en/stable/install.html) to install the proper version of cupy
+2. Run `pip install -r requirements_cuda.txt`
+
 ## Usage
 ```
 python main.py [-h] -i INPUT [-o OUTPUT] (-s | -b | -v | -p) [-t TIMESCALE] [-d DURATION]
@@ -39,12 +53,15 @@ Rendering Options
 
   --border BORDER       		percentage (as a float) of border between the path and screen
   
+  -g GPU, --gpu GPU			Use Cuda to accelerate rendering process (use a number to specify a gpu or * for any)
+  
 Path Options
   --density DENSITY     		how densely packed are samples of a path
   --points POINTS       		how many point in an image or frame (may be slightly off)
 
 Miscellaneous Options
   --info                		Prints some info about the sketch
+  --show                		Display the sketch during rendering
   --save-path SAVE_PATH 		saves the path in a file to save recomputation
 					(dimensions aren't saved but infered on load)
 
@@ -57,7 +74,7 @@ Note:
 ## Examples
 
 <div align="center">
-<img src="./assets/e0.gif" width="40%">
+<img src="./assets/e0.gif" width="400vw">
 </div>
 
 ```
@@ -65,8 +82,8 @@ python main.py -i sample\yt.svg -s -o sample\yt -t 1/2 -fpf 1 -d 3*pi --density 
 ```
 
 <div align="center">
-<img src="./assets/e1.gif" width="35%">
-<img src="./assets/e2.gif" width="35%">
+<img src="./assets/e1.gif" width="350vw">
+<img src="./assets/e2.gif" width="350vw">
 </div>
 
 ```
@@ -75,7 +92,7 @@ python main.py -i sample\grass.png -b -o sample\grass -t 1/8 -fpf 2 -d 3*pi -tl 
 ```
 
 <div align="center">
-<img src="./assets/e3.gif" width="80%">
+<img src="./assets/e3.gif" width="800vw">
 </div>
 
 ```
