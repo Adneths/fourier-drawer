@@ -12,20 +12,6 @@ import time
 
 from .util import printProgressBar
 
-def getClosestPair(A, B):
-	#Check duplicates
-	AB = np.append(np.unique(A), np.unique(B))
-	ABq, counts = np.unique(AB, return_counts=True)
-	if len(ABq) < len(AB):
-		p = ABq[np.argmax(counts > 1)]
-		return np.argmax(A == p), np.argmax(B == p), 0
-	
-	pA = np.transpose([np.real(A),np.imag(A)])
-	pB = np.transpose([np.real(B),np.imag(B)])
-	M = scipy.spatial.distance.cdist(pA,pB)
-	ind = np.unravel_index(np.argmin(M),M.shape)
-	return ind[0], ind[1], M[ind[0],ind[1]]
-
 def minMax(a,b):
 	if a > b:
 		return b, a
@@ -33,14 +19,24 @@ def minMax(a,b):
 def mergePaths(paths, showProgress=True):
 	if showProgress:
 		prog = 0
-		total = len(paths)**2
-		
+		total = len(paths)*(len(paths)+5)/2
+	
+	data = []
+	trees = []
+	for i in range(len(paths)):
+		data.append(np.stack([np.real(paths[i]),np.imag(paths[i])],axis=1))
+		trees.append(scipy.spatial.KDTree(data[-1]))
+		prog+=2
+		printProgressBar(prog/total, 'Optimizing Path')
+	
 	A = np.zeros((len(paths),len(paths),3))
 	for i in range(len(paths)):
 		for j in range(i+1,len(paths)):
-			A[i,j] = getClosestPair(paths[i],paths[j])
+			res = trees[i].query(data[j])
+			ind = np.argmin(res[0])
+			A[i,j] = (res[1][ind], ind, res[0][ind])
 			if showProgress:
-				prog+=2
+				prog+=1
 				printProgressBar(prog/total, 'Optimizing Path')
 	
 	span = scipy.sparse.csgraph.minimum_spanning_tree(np.square(A[:,:,2]), overwrite=True)
