@@ -176,7 +176,7 @@ def svgToPathHelper(list, root, tran, scal, tLen, namespace, base_density, N):
 		if child.tag == namespace+'path':
 			path = parse_path(child.attrib['d'])
 			for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
-				points = pathToPoints(p, density=base_density*scale, N=int(N*(p.length()*scale+rLen%dP)/tLen))
+				points = pathToPoints(p, density=base_density*scale, N=-1 if N == -1 else int(N*(p.length()*scale+rLen%dP)/tLen))
 				rLen += p.length()*scale
 				points = np.real(points)*scal[0] + 1j*np.imag(points)*scal[1]
 				points = points + tran[0] - 1j*tran[1]
@@ -222,7 +222,7 @@ def imageToPath(data, base_density=7, N=-1, showProgress=True):
 		tLen = path.length()
 		dP = tLen/N
 		for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
-			points = pathToPoints(p, density=base_density*scale, N=int(N*(p.length()+rLen%dP)/tLen))
+			points = pathToPoints(p, density=base_density*scale, N=-1 if N == -1 else int(N*(p.length()+rLen%dP)/tLen))
 			rLen += p.length()
 			if len(points) > 0:
 				paths.append(points)
