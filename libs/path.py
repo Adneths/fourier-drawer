@@ -9,6 +9,7 @@ import potrace
 import re
 import subprocess
 import time
+import skvideo.io
 
 from .util import printProgressBar
 
@@ -26,8 +27,9 @@ def mergePaths(paths, showProgress=True):
 	for i in range(len(paths)):
 		data.append(np.stack([np.real(paths[i]),np.imag(paths[i])],axis=1))
 		trees.append(scipy.spatial.KDTree(data[-1]))
-		prog+=2
-		printProgressBar(prog/total, 'Optimizing Path')
+		if showProgress:
+			prog+=2
+			printProgressBar(prog/total, 'Optimizing Path')
 	
 	A = np.zeros((len(paths),len(paths),3))
 	for i in range(len(paths)):
