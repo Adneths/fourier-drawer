@@ -91,11 +91,14 @@ def mergePaths(paths, showProgress=True):
 	return path
 
 def pathToPoints(path, density=7, N=-1):
-	if N < 1:
+	if N < 0:
 		N = int(path.length()*density)
-	t = np.linspace(0, len(path), N);
+	elif N == 0:
+		return []
+	t = np.linspace(0, len(path), N)
 	ts = [t[(t<i)*(t>=i-1)]-i+1 for i in range(1,len(path)+1)]
-	ts[-1] = np.append(ts[-1],1)
+	if N > 1:
+		ts[-1] = np.append(ts[-1],1)
 	x = []
 	for seg, param in zip(path,ts):
 		x = np.append(x,seg.poly()(param))
@@ -155,7 +158,6 @@ def svgToPathCountLen(root, tran, scal, namespace):
 	for child in root:
 		if child.tag == namespace+'path':
 			path = parse_path(child.attrib['d'])
-			#Some inaccuracy in length
 			total += path.length()*scale
 		total += svgToPathCountLen(child, tran, scal, namespace)
 	return total
@@ -166,14 +168,18 @@ def svgToPathHelper(list, root, tran, scal, tLen, namespace, base_density, N):
 		s = getScale(root.attrib['transform'])
 		scal = (scal[0]*s[0],scal[1]*s[1])
 	scale = np.sqrt(scal[0]*scal[0]+scal[1]*scal[1])/np.sqrt(2)
+	dP = tLen/N
+	rLen = 0
 	for child in root:
 		if child.tag == namespace+'path':
 			path = parse_path(child.attrib['d'])
 			for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
-				points = pathToPoints(p, density=base_density*scale, N=int(N*p.length()*scale/tLen))
+				points = pathToPoints(p, density=base_density*scale, N=int(N*(p.length()*scale+rLen%dP)/tLen))
+				rLen += p.length()*scale
 				points = np.real(points)*scal[0] + 1j*np.imag(points)*scal[1]
 				points = points + tran[0] - 1j*tran[1]
-				list.append(points)
+				if len(points) > 0:
+					list.append(points)
 		svgToPathHelper(list, child, tran, scal, tLen, namespace, base_density, N)
 
 def imageFileToPath(file, base_density=7, N=-1):
@@ -210,10 +216,14 @@ def imageToPath(data, base_density=7, N=-1, showProgress=True):
 		paths = []
 		path = parse_path(''.join(pStrs));
 		scale = 300000/getArea(path.bbox())
+		rLen = 0
 		tLen = path.length()
+		dP = tLen/N
 		for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
-			points = pathToPoints(p, density=base_density*scale, N=int(N*p.length()/tLen))
-			paths.append(points)
+			points = pathToPoints(p, density=base_density*scale, N=int(N*(p.length()+rLen%dP)/tLen))
+			rLen += p.length()
+			if len(points) > 0:
+				paths.append(points)
 		return mergePaths(paths,showProgress)
 
 def appendFrames(frames, b):
