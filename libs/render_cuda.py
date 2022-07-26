@@ -144,10 +144,10 @@ class CudaWorld(World):
 		while self.time < duration and not glfw.window_should_close(window):
 			t = time.time()
 			self.draw(save)
-			if show:
+			if show and save:
 				self.display()
-			glfw.swap_buffers(window)
-			glfw.poll_events()
+				glfw.swap_buffers(window)
+				glfw.poll_events()
 			
 			if fpf > 1:
 				save = not save
