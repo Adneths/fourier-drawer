@@ -4,7 +4,6 @@ import skvideo.io
 import numpy as np
 import numexpr as ne
 import scipy
-from PIL import Image
 
 import glfw
 from OpenGL.GL import *
@@ -12,6 +11,7 @@ from OpenGL.GL import *
 import time
 
 from .util import printProgressBar
+from .gif import GifWriter
 
 class World(object):
 	CYCLE_DURATION = 2*np.pi
@@ -59,7 +59,7 @@ class World(object):
 		self.pathColorArr = (GLfloat * self.pathColorArr.size)(*self.pathColorArr)
 	
 	
-	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False):
+	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False, isGif=False):
 		print('Preparing render')
 		self.generateTrail()
 		self.vecs = np.append(0,self.weights)
@@ -104,7 +104,21 @@ class World(object):
 		d100 = [0]*50
 		tail = 0
 		
-		self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
+		if isGif:
+			self.writer = GifWriter(output+'.gif')
+			self.writer.writeHeader(self.dims[0], self.dims[1])
+			colors = [0x00,0x00,0x00,int(self.vecColor[0]),int(self.vecColor[1]),int(self.vecColor[2])]
+			a = np.empty((42))
+			a[0::3] = np.linspace(self.pathColor[0],0,15)[:-1]
+			a[1::3] = np.linspace(self.pathColor[1],0,15)[:-1]
+			a[2::3] = np.linspace(self.pathColor[2],0,15)[:-1]
+			for b in a.tolist():
+				colors.append(int(b))
+			self.writer.writePalette(colors)
+			self.writer.writeApplicationExtensionLoop()
+		else:
+			self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
+			
 		while self.time < duration and not glfw.window_should_close(window):
 			t = time.time()
 			self.draw(save)
@@ -130,6 +144,7 @@ class World(object):
 			printProgressBar(self.time/duration, 'Rendering', s)
 		printProgressBar(1, 'Rendering', '00:00 remaining           ')
 		glfw.terminate()
+		self.writer.close()
 		return
 	
 	def dt(self):
@@ -215,7 +230,7 @@ class World(object):
 		arr = np.flip(np.reshape(np.frombuffer(data, dtype=np.ubyte, count=self.dims[0] * self.dims[1] * len('RGBA')), (self.dims[1], self.dims[0], 4)),0)
 		self.writer.writeFrame(arr)
 
-def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show):
+def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show, isGif):
 	N = len(path)
 	X = np.fft.fft(path)
 	freqs = np.append(np.arange(0,int(N/2)),np.arange(-int(np.ceil(N/2)),0))
@@ -226,4 +241,4 @@ def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailCol
 	world.setPathFade(trailFade)
 	world.setPathColor(trailColor)
 	world.setVectorColor(vectorColor)
-	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show)		
+	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show,isGif=isGif)		

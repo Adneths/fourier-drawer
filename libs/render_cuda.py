@@ -4,7 +4,6 @@ import skvideo.io
 import numpy as np
 import numexpr as ne
 import scipy
-from PIL import Image
 
 import glfw
 from OpenGL.GL import *

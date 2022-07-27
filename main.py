@@ -108,13 +108,19 @@ duration = strMath(args.duration, var)
 trailLength = strMath(args.trail_length, var)
 fpf = int(strMath(args.frames_per_frame, var))
 
+
+outputName = args.output[:args.output.rindex('.')] if args.output.rindex('.') != -1 else args.output
+isGif = True if args.output[-4:].lower() == '.gif' else False
+
 if args.gpu != None:
 	from libs.render_cuda import renderPath
 	if args.gpu == '*':
 		gpu = None
 	else:
 		gpu = int(args.gpu)
-	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, gpu)
+	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, outputName, args.show, gpu)
 else:
 	from libs.render import renderPath
-	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show)
+	import cProfile
+	cProfile.run('renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, outputName, args.show, isGif)')
+	#renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, outputName, args.show, isGif)
