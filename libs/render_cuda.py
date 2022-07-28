@@ -133,38 +133,8 @@ class CudaWorld(World):
 		self.vecs = cp.append(0,cp.asarray(self.weights))
 		self.stepM = cp.exp(cp.tile(cp.reshape(cp.append(0,cp.asarray(self.freqs)*1j),(self.vecLength,1)),(1,self.skipC)) * (cp.arange(1,self.skipC+1)*self.dt())[None,:])
 		
-		self.cutIndex = 0
-		save = True
-		pT = time.time()
-		s = 'XX:XX remaining'
-		d100 = [0]*50
-		tail = 0
 		
-		self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
-		while self.time < duration and not glfw.window_should_close(window):
-			t = time.time()
-			self.draw(save)
-			if show and save:
-				self.display()
-				glfw.swap_buffers(window)
-				glfw.poll_events()
-			
-			if fpf > 1:
-				save = not save
-			
-			d100[tail] = time.time()-t
-			tail = (tail+1)%50
-			if time.time()-pT > 2:
-				pT = time.time()
-				s = (duration-self.time)/self.dt()/fpf * sum(d100)/50
-				if fpf > 1:
-					s*=2
-				if s < 3600:
-					s = '| {:02}:{:02.0f} remaining   '.format(int((s%3600)/60),s%60)
-				else:
-					s = '| {}:{:02}:{:02.0f} remaining  '.format(int(s/3600),int((s%3600)/60),s%60)
-			printProgressBar(self.time/duration, 'C:Rendering', s)
-		printProgressBar(1, 'C:Rendering', '00:00 remaining           ')
+		self.renderLoop(window, duration, fps, fpf, output, show)
 		self.buffer_vec.unregister()
 		self.buffer_path.unregister()
 		glfw.terminate()

@@ -26,6 +26,11 @@ def strMath(s, var = {}):
 				i+=1
 	return exp[0]
 
+def strToMemory(s):
+	s = ''.join(s.split())
+	factor = {'k': 1024, 'm': 1024**2, 'g': 1024**3}
+	return float(s[:-1]) * factor[s[-1].lower()]
+
 parser = argparse.ArgumentParser(description='Converts input file into a fourier series')
 parser.add_argument('-i', '--input', type=str, required=True, help='the input file')
 parser.add_argument('-o', '--output', type=str, default='out', help='the output file name')
@@ -36,7 +41,8 @@ group.add_argument('-v', '--video', action='store_true', help="marks the input f
 group.add_argument('-p', '--path', action='store_true', help="marks the input file as a .npy (numpy array) file)")
 
 parser.add_argument('-t', '--timescale', type=str, default='1', help='how many seconds video time is 1 second real time (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
-parser.add_argument('-d', '--duration', type=str, default='2*pi', help='the duration of video time to render (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+parser.add_argument('-d', '--duration', type=str, default='2*pi', help='the duration of video time to write to file (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+parser.add_argument('-ss', '--start', type=str, default='0', help='the time after which writing to file begins (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
 parser.add_argument('-tl', '--trail-length', type=str, default='2.1*pi', help='the duration of video time to keep the trail visible (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('-tf', '--trail-fade', action='store_true', help='whether the tail should fade with time')
@@ -53,6 +59,7 @@ group = parser.add_mutually_exclusive_group()
 group.add_argument('--density', type=float, default=2, help='how densely packed are samples of a path')
 group.add_argument('--points', type=int, default=-1, help='how many point in an image or frame (may be slightly off)')
 
+parser.add_argument('-m-lim', '--memory-limit', type=str, default='2G', help='Sets the maximum amount of memory the program should use during rendering. If it is insufficient the program will request for more. Accepts a number followed by a unit (K,M,G)')
 
 parser.add_argument('--info', action='store_true', help='Prints some info about the sketch')
 parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
@@ -107,6 +114,8 @@ timescale = strMath(args.timescale, var)
 duration = strMath(args.duration, var)
 trailLength = strMath(args.trail_length, var)
 fpf = int(strMath(args.frames_per_frame, var))
+start = strMath(args.start, var)
+memLim = strToMemory(args.memory_limit)
 
 if args.gpu != None:
 	from libs.render_cuda import renderPath

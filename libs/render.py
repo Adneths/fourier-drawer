@@ -58,6 +58,16 @@ class World(object):
 		self.pathColorArr[3::4] = np.linspace(0,1,self.path.size)
 		self.pathColorArr = (GLfloat * self.pathColorArr.size)(*self.pathColorArr)
 	
+	def dt(self):
+		return 1/60 * self.timescale
+	
+	def display(self):
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, self.fbo)
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
+		glClear(GL_COLOR_BUFFER_BIT)
+		glBlitFramebuffer(0, 0, self.dims[0], self.dims[1], 0, 0, self.dims[0], self.dims[1], GL_COLOR_BUFFER_BIT, GL_NEAREST)
+		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+	
 	
 	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False):
 		print('Preparing render')
@@ -98,6 +108,11 @@ class World(object):
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, self.dims[0], self.dims[1])
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorBuffer)
 
+		self.renderLoop(window, duration, fps, fpf, output, show)
+		glfw.terminate()
+		return
+	
+	def renderLoop(self, window, duration, fps, fpf, output, show):
 		save = True
 		pT = time.time()
 		s = 'XX:XX remaining'
@@ -129,19 +144,6 @@ class World(object):
 					s = '| {}:{:02}:{:02.0f} remaining  '.format(int(s/3600),int((s%3600)/60),s%60)
 			printProgressBar(self.time/duration, 'Rendering', s)
 		printProgressBar(1, 'Rendering', '00:00 remaining           ')
-		glfw.terminate()
-		return
-	
-	def dt(self):
-		return 1/60 * self.timescale
-	
-	
-	def display(self):
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, self.fbo)
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
-		glClear(GL_COLOR_BUFFER_BIT)
-		glBlitFramebuffer(0, 0, self.dims[0], self.dims[1], 0, 0, self.dims[0], self.dims[1], GL_COLOR_BUFFER_BIT, GL_NEAREST)
-		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
 	
 	def draw(self, save):
 		if not save:
