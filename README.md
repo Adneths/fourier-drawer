@@ -36,6 +36,7 @@ Input Options
   -p, --path            		marks the input file as a .npy (numpy array) file)
 
 Rendering Options
+  -ss {math}, --start {math}		the time after which writing to file begins
   -t {math}, --timescale {math} 	how many seconds video time is 1 second real time
   -d {math}, --duration {math} 		the duration of video time to render
   -tl {math}, --trail-length {math} 	the duration of video time to keep the trail visible
@@ -55,9 +56,14 @@ Rendering Options
   
   -g GPU, --gpu GPU			Use Cuda to accelerate rendering process (use a number to specify a gpu or * for any)
   
+  -m-lim MEMORY_LIMIT, --memory-limit MEMORY_LIMIT
+                        		(Approximate) Sets the maximum amount of memory the program should use during rendering.
+					If it is insufficient the program will request for more.
+					Accepts a number followed by a unit (K,M,G)
+  
 Path Options
   --density DENSITY     		how densely packed are samples of a path
-  --points POINTS       		how many point in an image or frame (may be slightly off)
+  --points POINTS       		how many point in an image or frame
 
 Miscellaneous Options
   --info                		Prints some info about the sketch
