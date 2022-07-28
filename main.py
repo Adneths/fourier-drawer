@@ -59,7 +59,7 @@ group = parser.add_mutually_exclusive_group()
 group.add_argument('--density', type=float, default=2, help='how densely packed are samples of a path')
 group.add_argument('--points', type=int, default=-1, help='how many point in an image or frame (may be slightly off)')
 
-parser.add_argument('-m-lim', '--memory-limit', type=str, default='2G', help='Sets the maximum amount of memory the program should use during rendering. If it is insufficient the program will request for more. Accepts a number followed by a unit (K,M,G)')
+parser.add_argument('-m-lim', '--memory-limit', type=str, default='2G', help='(Approximate) Sets the maximum amount of memory the program should use during rendering. If it is insufficient the program will request for more. Accepts a number followed by a unit (K,M,G)')
 
 parser.add_argument('--info', action='store_true', help='Prints some info about the sketch')
 parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
@@ -123,7 +123,7 @@ if args.gpu != None:
 		gpu = None
 	else:
 		gpu = int(args.gpu)
-	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, gpu)
+	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, memLim, start, gpu)
 else:
 	from libs.render import renderPath
-	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show)
+	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, memLim, start)

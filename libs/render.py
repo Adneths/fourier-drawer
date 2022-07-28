@@ -47,7 +47,6 @@ class World(object):
 	def setPathFade(self, fade):
 		self.pathFade = fade
 	
-	
 	def generateTrail(self):
 		self.path = np.full((int(self.trailDuration*60/self.timescale)), ne.evaluate('sum(v)', local_dict = {'v': self.weights}), dtype=np.complex128)
 		self.tail = 0
@@ -57,6 +56,9 @@ class World(object):
 		self.pathColorArr = np.tile([self.pathColor[0],self.pathColor[1],self.pathColor[2],0],self.path.size)
 		self.pathColorArr[3::4] = np.linspace(0,1,self.path.size)
 		self.pathColorArr = (GLfloat * self.pathColorArr.size)(*self.pathColorArr)
+	
+	def setStartTime(self, start):
+		self.start = start
 	
 	def dt(self):
 		return 1/60 * self.timescale
@@ -69,12 +71,12 @@ class World(object):
 		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
 	
 	
-	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False):
+	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False, matSize=1):
 		print('Preparing render')
 		self.generateTrail()
 		self.vecs = np.append(0,self.weights)
 		
-		w = np.tile(np.transpose([np.append(0,self.freqs*1j)]),(1,fpf)) * (np.arange(1,fpf+1)*self.dt())[None,:]
+		w = np.tile(np.transpose([np.append(0,self.freqs*1j)]),(1,min(fpf,matSize))) * (np.arange(1,min(fpf,matSize)+1)*self.dt())[None,:]
 		self.stepM = ne.evaluate('exp(w)')
 		
 		#Initialize GL
@@ -103,23 +105,32 @@ class World(object):
 		glBindRenderbuffer(GL_RENDERBUFFER, colorBuffer)
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, self.dims[0], self.dims[1])
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorBuffer)
+		
+		glClearColor(0,0,0,1)
 
-		self.renderLoop(window, duration, fps, fpf, output, show)
+		self.renderLoop(window, duration, fps, fpf, output, show, matSize)
 		glfw.terminate()
 		return
 	
-	def renderLoop(self, window, duration, fps, fpf, output, show):
-		render = True
+	def renderLoop(self, window, duration, fps, fpf, output, show, matSize):
 		pT = time.time()
 		s = 'XX:XX remaining'
 		d100 = [0]*50
 		tail = 0
 		
 		self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
-		while self.time < duration and not glfw.window_should_close(window):
+		while self.time < duration + self.start and not glfw.window_should_close(window):
 			t = time.time()
-			self.draw(fpf,render)
-			if show and render:
+			if self.time < self.start:
+				k = int((self.start-self.time)/self.dt())+1
+				self.draw(min(fpf,matSize,k),False)
+			elif matSize < fpf:
+				for i in range((fpf+matSize-1)//matSize-1):
+					self.draw(matSize,False)
+				self.draw(max(1,fpf%matSize),True)
+			else:
+				self.draw(fpf,True)
+			if show:
 				self.display()
 				glfw.swap_buffers(window)
 				glfw.poll_events()
@@ -128,14 +139,12 @@ class World(object):
 			tail = (tail+1)%50
 			if time.time()-pT > 2:
 				pT = time.time()
-				s = (duration-self.time)/self.dt()/fpf * sum(d100)/50
-				if fpf > 1:
-					s*=2
+				s = (duration+self.start-self.time)/self.dt()/fpf * sum(d100)/50
 				if s < 3600:
 					s = '| {:02}:{:02.0f} remaining   '.format(int((s%3600)/60),s%60)
 				else:
 					s = '| {}:{:02}:{:02.0f} remaining  '.format(int(s/3600),int((s%3600)/60),s%60)
-			printProgressBar(self.time/duration, 'Rendering', s)
+			printProgressBar(self.time/(duration + self.start), 'Rendering', s)
 		printProgressBar(1, 'Rendering', '00:00 remaining           ')
 	
 	def draw(self, steps, render):
@@ -210,10 +219,23 @@ class World(object):
 		arr = np.flip(np.reshape(np.frombuffer(data, dtype=np.ubyte, count=self.dims[0] * self.dims[1] * len('RGBA')), (self.dims[1], self.dims[0], 4)),0)
 		self.writer.writeFrame(arr)
 
-def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show):
+def computeMatSize(memLimBase, rowSize, fpf):
+	matSize = max(0,memLimBase)//2//rowSize
+	if matSize < 1:
+		print('Prescribed memory is insufficient for rendering. Allocate just enough memory for rendering operation? [Y/n]: ', end='')
+		res = input()
+		if res.lower()[0] != 'y':
+			exit()
+		matSize = 1
+	k = (fpf+matSize-1)//matSize
+	return int((fpf+k-1)//k)
+
+def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show, memLim, start):
 	N = len(path)
 	X = np.fft.fft(path)
 	freqs = np.append(np.arange(0,int(N/2)),np.arange(-int(np.ceil(N/2)),0))
+	
+	matSize = computeMatSize(memLim - 2*X.nbytes - freqs.nbytes - int(trailLength*60/timescale)*(np.dtype(np.complex128).itemsize + (4*np.dtype(float).itemsize if trailFade else 0)), X.nbytes, fpf)
 	
 	world = World(X/N,freqs,dims)
 	world.configTime(timescale)
@@ -221,4 +243,5 @@ def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailCol
 	world.setPathFade(trailFade)
 	world.setPathColor(trailColor)
 	world.setVectorColor(vectorColor)
-	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show)		
+	world.setStartTime(start)
+	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show,matSize=matSize)		

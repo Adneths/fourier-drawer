@@ -18,7 +18,8 @@ import time
 
 from .util import printProgressBar
 
-from .render import World
+from .render import World, computeMatSize
+
 class CudaWorld(World):
 	VERTEX_SHADER = '''
 	#version 430
@@ -61,7 +62,7 @@ class CudaWorld(World):
 	}
 	'''
 		
-	def render(self, duration=World.CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False):
+	def render(self, duration=World.CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False, matSize=1):
 		print('Preparing render')
 		
 		#Initialize GL
@@ -129,10 +130,11 @@ class CudaWorld(World):
 			V[:] = cp.full((self.pathLength), np.sum(self.weights * ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.time})), dtype=np.complex128)
 
 		self.vecs = cp.append(0,cp.asarray(self.weights))
-		self.stepM = cp.exp(cp.tile(cp.reshape(cp.append(0,cp.asarray(self.freqs)*1j),(self.vecLength,1)),(1,fpf)) * (cp.arange(1,fpf+1)*self.dt())[None,:])
+		self.stepM = cp.exp(cp.tile(cp.reshape(cp.append(0,cp.asarray(self.freqs)*1j),(self.vecLength,1)),(1,min(fpf,matSize))) * (cp.arange(1,min(fpf,matSize)+1)*self.dt())[None,:])
 		
+		glClearColor(0,0,0,1)
 		
-		self.renderLoop(window, duration, fps, fpf, output, show)
+		self.renderLoop(window, duration, fps, fpf, output, show, matSize)
 		self.buffer_vec.unregister()
 		self.buffer_path.unregister()
 		glfw.terminate()
@@ -157,7 +159,7 @@ class CudaWorld(World):
 				if not pPath is None:
 					P[-steps:-1] = pPath
 				P[-1] = last
-		return 0
+		return 0 if render else None
 		
 	def renderFrame(self, vecSum):
 		glClear(GL_COLOR_BUFFER_BIT)
@@ -191,12 +193,14 @@ class CudaWorld(World):
 		if self.writer != None:
 			self.saveFrame()
 
-def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show, gpu=None):
+def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show, memLim, start, gpu=None):
 	if gpu != None:
 		cp.cuda.Device(gpu).use()
 	N = len(path)
 	X = np.fft.fft(path)
 	freqs = np.append(np.arange(0,int(N/2)),np.arange(-int(np.ceil(N/2)),0))
+	
+	matSize = computeMatSize(memLim - 2*X.nbytes - freqs.nbytes - int(trailLength*60/timescale)*np.dtype(np.complex128).itemsize, X.nbytes, fpf)
 	
 	world = CudaWorld(X/N,freqs,dims)
 	world.configTime(timescale)
@@ -204,5 +208,6 @@ def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailCol
 	world.setPathFade(trailFade)
 	world.setPathColor(trailColor)
 	world.setVectorColor(vectorColor)
-	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show)		
-
+	world.setStartTime(start)
+	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show,matSize=matSize)
+	
