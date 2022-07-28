@@ -73,13 +73,9 @@ class World(object):
 		print('Preparing render')
 		self.generateTrail()
 		self.vecs = np.append(0,self.weights)
-		if fpf > 1:
-			self.skipC = max(1,fpf-1)
-			w = np.tile(np.transpose([np.append(0,self.freqs*1j)]),(1,self.skipC)) * (np.arange(1,self.skipC+1)*self.dt())[None,:]
-			self.stepM = ne.evaluate('exp(w)')
-			self.step = np.transpose(self.stepM[:,0])
-		else:
-			self.step = ne.evaluate('exp(1j*k*t)', local_dict = {'k': np.append(0,self.freqs), 't': self.dt()})
+		
+		w = np.tile(np.transpose([np.append(0,self.freqs*1j)]),(1,fpf)) * (np.arange(1,fpf+1)*self.dt())[None,:]
+		self.stepM = ne.evaluate('exp(w)')
 		
 		#Initialize GL
 		if not glfw.init():
@@ -113,7 +109,7 @@ class World(object):
 		return
 	
 	def renderLoop(self, window, duration, fps, fpf, output, show):
-		save = True
+		render = True
 		pT = time.time()
 		s = 'XX:XX remaining'
 		d100 = [0]*50
@@ -122,14 +118,11 @@ class World(object):
 		self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
 		while self.time < duration and not glfw.window_should_close(window):
 			t = time.time()
-			self.draw(save)
-			if show and save:
+			self.draw(fpf,render)
+			if show and render:
 				self.display()
 				glfw.swap_buffers(window)
 				glfw.poll_events()
-			
-			if fpf > 1:
-				save = not save
 			
 			d100[tail] = time.time()-t
 			tail = (tail+1)%50
@@ -145,72 +138,72 @@ class World(object):
 			printProgressBar(self.time/duration, 'Rendering', s)
 		printProgressBar(1, 'Rendering', '00:00 remaining           ')
 	
-	def draw(self, save):
-		if not save:
-			pPath = np.matmul(self.vecs,self.stepM[:,:-1])
-			self.vecs = ne.evaluate('a*b', local_dict = {'a': self.vecs, 'b': self.stepM[:,-1]})
-			pPath = np.append(pPath, ne.evaluate('sum(v)', local_dict = {'v': self.vecs}))
-			self.time += self.dt()*self.skipC
-			
-			if self.tail+len(pPath) >= len(self.path):
-				mid = self.tail+len(pPath) - len(self.path)
-				self.path[self.tail:self.tail+len(pPath)-mid] = pPath[0:len(pPath)-mid]
-				self.path[:mid] = pPath[len(pPath)-mid:]
-				self.tail = mid
-			else:
-				self.path[self.tail:self.tail+len(pPath)] = pPath
-				self.tail = self.tail+len(pPath)
-		else:
-			self.time += self.dt()
-			if len(self.step) < 300000:
-				self.vecs = self.vecs * self.step
-			else:
-				self.vecs = ne.evaluate('a*b', local_dict = {'a': self.vecs, 'b': self.step})
-			
+	def draw(self, steps, render):
+		vecSum = self.computeFrame(steps, render)
+		if not vecSum is None:
+			self.renderFrame(vecSum)
+	
+	def computeFrame(self, steps, render):
+		self.time += self.dt()*steps
+		pPath = np.empty((0),dtype=np.complex128) if steps==1 else np.matmul(self.vecs,self.stepM[:,:steps-1])
+		ne.evaluate('a*b', local_dict = {'a': self.vecs, 'b': self.stepM[:,steps-1]}, out=self.vecs)
+		if render:
 			vecSum = np.cumsum(self.vecs)
-			self.path[self.tail] = vecSum[-1]
-			self.tail = (self.tail+1)%len(self.path)
-			
 			cutIndex = np.argmax(abs(vecSum-vecSum[-1])<1)+1
 			if self.cutIndex < cutIndex:
 				self.cutIndex = cutIndex
-			vecSum = vecSum[0:self.cutIndex]
 			
+			pPath = np.append(pPath, vecSum[-1])
+		else:
+			pPath = np.append(pPath, ne.evaluate('sum(v)', local_dict = {'v': self.vecs}))
 		
-			glClear(GL_COLOR_BUFFER_BIT)
-			glLoadIdentity()
-			glScale(2/self.dims[0],2/self.dims[1],1)
-			
-			glColor3f(self.vecColor[0],self.vecColor[1],self.vecColor[2])
-			glLineWidth(1)
-			array = np.empty((vecSum.size*2))
-			array[0::2] = np.real(vecSum)
-			array[1::2] = np.imag(vecSum)
-			data = (GLfloat * array.size)(*array)
-			glVertexPointer(2, GL_FLOAT, 0, data)
-			glDrawArrays(GL_LINE_STRIP, 0, vecSum.size)
-			
-			glLineWidth(1.5)
-			p = np.roll(self.path,-self.tail)
-			array = np.empty((p.size*2))
-			array[0::2] = np.real(p)
-			array[1::2] = np.imag(p)
-			data = (GLfloat * array.size)(*array)
-			glEnable(GL_BLEND)
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			if self.pathFade:
-				glEnableClientState(GL_COLOR_ARRAY)
-				glColorPointer(4, GL_FLOAT, 0, self.pathColorArr)
-			else:
-				glColor3f(self.pathColor[0],self.pathColor[1],self.pathColor[2])
-			glVertexPointer(2, GL_FLOAT, 0, data)
-			glDrawArrays(GL_LINE_STRIP, 0, p.size)
-			glDisableClientState(GL_COLOR_ARRAY)
-			glDisable(GL_BLEND)
-			
-			if self.writer != None:
-				self.saveFrame()
-				
+		if self.tail+len(pPath) >= len(self.path):
+			mid = self.tail+len(pPath) - len(self.path)
+			self.path[self.tail:self.tail+len(pPath)-mid] = pPath[0:len(pPath)-mid]
+			self.path[:mid] = pPath[len(pPath)-mid:]
+			self.tail = mid
+		else:
+			self.path[self.tail:self.tail+len(pPath)] = pPath
+			self.tail = self.tail+len(pPath)
+		
+		if render:
+			return vecSum
+	
+	def renderFrame(self, vecSum):
+		glClear(GL_COLOR_BUFFER_BIT)
+		glLoadIdentity()
+		glScale(2/self.dims[0],2/self.dims[1],1)
+		
+		glColor3f(self.vecColor[0],self.vecColor[1],self.vecColor[2])
+		glLineWidth(1)
+		array = np.empty((self.cutIndex*2))
+		array[0::2] = np.real(vecSum[0:self.cutIndex])
+		array[1::2] = np.imag(vecSum[0:self.cutIndex])
+		data = (GLfloat * array.size)(*array)
+		glVertexPointer(2, GL_FLOAT, 0, data)
+		glDrawArrays(GL_LINE_STRIP, 0, self.cutIndex)
+		
+		glLineWidth(1.5)
+		p = np.roll(self.path,-self.tail)
+		array = np.empty((p.size*2))
+		array[0::2] = np.real(p)
+		array[1::2] = np.imag(p)
+		data = (GLfloat * array.size)(*array)
+		glEnable(GL_BLEND)
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		if self.pathFade:
+			glEnableClientState(GL_COLOR_ARRAY)
+			glColorPointer(4, GL_FLOAT, 0, self.pathColorArr)
+		else:
+			glColor3f(self.pathColor[0],self.pathColor[1],self.pathColor[2])
+		glVertexPointer(2, GL_FLOAT, 0, data)
+		glDrawArrays(GL_LINE_STRIP, 0, p.size)
+		glDisableClientState(GL_COLOR_ARRAY)
+		glDisable(GL_BLEND)
+		
+		if not self.writer is None:
+			self.saveFrame()
+	
 	def saveFrame(self):
 		data = (GLubyte * (self.dims[0] * self.dims[1] * len('RGBA')))()
 		glReadPixels(0, 0, self.dims[0], self.dims[1], GL_RGBA, GL_UNSIGNED_BYTE, data)

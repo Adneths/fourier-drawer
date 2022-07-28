@@ -92,7 +92,6 @@ class CudaWorld(World):
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorBuffer)		
 
 		#Setup VBOs
-		self.skipC = max(1,fpf-1)
 		self.vecLength = len(self.weights)+1
 		self.pathLength = int(self.trailDuration*60/self.timescale)
 		
@@ -116,7 +115,6 @@ class CudaWorld(World):
 			self.shader_path = self.shader_vec
 		
 		
-		
 		VBO_vec, VBO_path = glGenBuffers(2)
 		flags = cudart.cudaGraphicsRegisterFlags.cudaGraphicsRegisterFlagsWriteDiscard
 		
@@ -131,7 +129,7 @@ class CudaWorld(World):
 			V[:] = cp.full((self.pathLength), np.sum(self.weights * ne.evaluate('exp(1j*k*t)', local_dict = {'k': self.freqs, 't': self.time})), dtype=np.complex128)
 
 		self.vecs = cp.append(0,cp.asarray(self.weights))
-		self.stepM = cp.exp(cp.tile(cp.reshape(cp.append(0,cp.asarray(self.freqs)*1j),(self.vecLength,1)),(1,self.skipC)) * (cp.arange(1,self.skipC+1)*self.dt())[None,:])
+		self.stepM = cp.exp(cp.tile(cp.reshape(cp.append(0,cp.asarray(self.freqs)*1j),(self.vecLength,1)),(1,fpf)) * (cp.arange(1,fpf+1)*self.dt())[None,:])
 		
 		
 		self.renderLoop(window, duration, fps, fpf, output, show)
@@ -139,62 +137,59 @@ class CudaWorld(World):
 		self.buffer_path.unregister()
 		glfw.terminate()
 		return
-	
-	def draw(self, save):
-		if not save:
-			self.time += self.dt()*self.skipC
-			with self.buffer_vec as V:
-				pPath = cp.matmul(self.vecs,self.stepM[:,:-1])
-				self.vecs = self.vecs * self.stepM[:,-1]
-				with self.buffer_path as P:
-					P[:] = cp.roll(P,-self.skipC)
-					P[-self.skipC:-1] = pPath
-					P[-1] = cp.sum(self.vecs)
-		else:
-			self.time += self.dt()
-			with self.buffer_vec as V:
-				a = self.stepM[:,0]
-				self.vecs = self.vecs*self.stepM[:,0]
-				vecSum = cp.cumsum(self.vecs)
-				cutIndex = cp.argmax(abs(vecSum-vecSum[-1])<1)+1
+
+	def computeFrame(self, steps, render):
+		self.time += self.dt()*steps
+		with self.buffer_vec as V:
+			pPath = None if steps==1 else cp.matmul(self.vecs,self.stepM[:,:steps-1])
+			np.multiply(self.vecs, self.stepM[:,steps-1], out=self.vecs)#self.vecs = self.vecs * self.stepM[:,steps-1]
+			if render:
+				cp.cumsum(self.vecs, out=V)
+				cutIndex = cp.argmax(abs(V-V[-1])<1)+1
 				if self.cutIndex < cutIndex:
 					self.cutIndex = cutIndex
-				V[0:self.cutIndex] = vecSum[0:self.cutIndex]
-				with self.buffer_path as P:
-					P[:] = cp.roll(P,-1)
-					P[-1] = vecSum[-1]
+				
+				last = V[-1]
+			else:
+				last = cp.sum(self.vecs)
+			with self.buffer_path as P:
+				P[:] = cp.roll(P,-steps)
+				if not pPath is None:
+					P[-steps:-1] = pPath
+				P[-1] = last
+		return 0
 		
-			glClear(GL_COLOR_BUFFER_BIT)
-			glLoadIdentity()
-			
-			
-			glLineWidth(1)
-			glBindBuffer(GL_ARRAY_BUFFER, self.buffer_vec.gl_buffer)
-			glVertexAttribPointer(0, 2, GL_DOUBLE, GL_FALSE, 2* sizeof(c_double), c_void_p(0))
-			glEnableVertexAttribArray(0)
-			
-			glUseProgram(self.shader_vec)
-			glUniform3f(0, self.vecColor[0],self.vecColor[1],self.vecColor[2])
-			glDrawArrays(GL_LINE_STRIP, 0, self.cutIndex);
-			
-			
-			glLineWidth(1.5)
-			glEnable(GL_BLEND)
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			
-			glBindBuffer(GL_ARRAY_BUFFER, self.buffer_path.gl_buffer)
-			glVertexAttribPointer(0, 2, GL_DOUBLE, GL_FALSE, 2* sizeof(c_double), c_void_p(0))
-			glEnableVertexAttribArray(0)
-			
-			glUseProgram(self.shader_path)
-			glUniform3f(0, self.pathColor[0],self.pathColor[1],self.pathColor[2])
-			glDrawArrays(GL_LINE_STRIP, 0, self.pathLength);
-			
-			glDisable(GL_BLEND)
-			
-			if self.writer != None:
-				self.saveFrame()
-
+	def renderFrame(self, vecSum):
+		glClear(GL_COLOR_BUFFER_BIT)
+		glLoadIdentity()
+		
+		
+		glLineWidth(1)
+		glBindBuffer(GL_ARRAY_BUFFER, self.buffer_vec.gl_buffer)
+		glVertexAttribPointer(0, 2, GL_DOUBLE, GL_FALSE, 2* sizeof(c_double), c_void_p(0))
+		glEnableVertexAttribArray(0)
+		
+		glUseProgram(self.shader_vec)
+		glUniform3f(0, self.vecColor[0],self.vecColor[1],self.vecColor[2])
+		glDrawArrays(GL_LINE_STRIP, 0, self.cutIndex);
+		
+		
+		glLineWidth(1.5)
+		glEnable(GL_BLEND)
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		
+		glBindBuffer(GL_ARRAY_BUFFER, self.buffer_path.gl_buffer)
+		glVertexAttribPointer(0, 2, GL_DOUBLE, GL_FALSE, 2* sizeof(c_double), c_void_p(0))
+		glEnableVertexAttribArray(0)
+		
+		glUseProgram(self.shader_path)
+		glUniform3f(0, self.pathColor[0],self.pathColor[1],self.pathColor[2])
+		glDrawArrays(GL_LINE_STRIP, 0, self.pathLength);
+		
+		glDisable(GL_BLEND)
+		
+		if self.writer != None:
+			self.saveFrame()
 
 def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show, gpu=None):
 	if gpu != None:
