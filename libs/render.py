@@ -12,6 +12,7 @@ import time
 
 from .util import printProgressBar
 from .gif import GifWriter
+from .shader import getShaders
 
 class World(object):
 	CYCLE_DURATION = 2*np.pi
@@ -44,6 +45,9 @@ class World(object):
 	def setPathColor(self, hexCode):
 		self.pathColor = (((hexCode>>16)&0xff)/255,((hexCode>>8)&0xff)/255,((hexCode)&0xff)/255)
 		
+	def setBackgroundColor(self, hexCode):
+		self.backgroundColor = (((hexCode>>16)&0xff)/255,((hexCode>>8)&0xff)/255,((hexCode)&0xff)/255)
+		
 	def setPathFade(self, fade):
 		self.pathFade = fade
 	
@@ -51,15 +55,25 @@ class World(object):
 	def generateTrail(self):
 		self.path = np.full((int(self.trailDuration*60/self.timescale)), ne.evaluate('sum(v)', local_dict = {'v': self.weights}), dtype=np.complex128)
 		self.tail = 0
-		self.generatePathColorArray()
 	
-	def generatePathColorArray(self):
-		self.pathColorArr = np.tile([self.pathColor[0],self.pathColor[1],self.pathColor[2],0],self.path.size)
-		self.pathColorArr[3::4] = np.linspace(0,1,self.path.size)
-		self.pathColorArr = (GLfloat * self.pathColorArr.size)(*self.pathColorArr)
+	def setupOutputFile(self, output, fps, isGif, gifQuality):
+		if isGif:
+			divs = 2**gifQuality - 2
+			self.writer = GifWriter(output+'.gif')
+			self.writer.writeHeader(self.dims[0], self.dims[1], fps=fps, bpp=gifQuality)
+			colors = np.empty((2**gifQuality*3))
+			colors[0::3][:-1] = np.linspace(self.backgroundColor[0],self.pathColor[0],divs+1) * 255
+			colors[1::3][:-1] = np.linspace(self.backgroundColor[1],self.pathColor[1],divs+1) * 255
+			colors[2::3][:-1] = np.linspace(self.backgroundColor[2],self.pathColor[2],divs+1) * 255
+			colors[-3:] = [int(self.vecColor[0]*255),int(self.vecColor[1]*255),int(self.vecColor[2]*255)]
+			self.writer.writePalette(colors)
+			self.writer.writeApplicationExtensionLoop()
+			
+			self.writer.initBackground()
+		else:
+			self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
 	
-	
-	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False, isGif=False):
+	def render(self, duration=CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False, isGif=False, gifQuality=4):
 		print('Preparing render')
 		self.generateTrail()
 		self.vecs = np.append(0,self.weights)
@@ -85,6 +99,8 @@ class World(object):
 		glfw.set_window_attrib(window, glfw.RESIZABLE , glfw.FALSE)
 		
 		#Setup GL
+		glShadeModel(GL_SMOOTH)
+		glClearColor(self.backgroundColor[0],self.backgroundColor[1],self.backgroundColor[2],1)
 		glEnableClientState(GL_VERTEX_ARRAY)
 		
 		self.fbo = GLuint(0)
@@ -97,6 +113,22 @@ class World(object):
 		glBindRenderbuffer(GL_RENDERBUFFER, colorBuffer)
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, self.dims[0], self.dims[1])
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorBuffer)
+		
+		#Setup VBOs
+		self.vecLength = len(self.weights)+1
+		self.pathLength = self.path.size
+		
+		self.shader_vec, self.shader_path = getShaders(isGif, self.pathLength, self.pathFade, self.dims, gifQuality)
+		
+		self.setupOutputFile(output, fps, isGif, gifQuality)
+		
+		self.VBO_vec, self.VBO_path = glGenBuffers(2)
+		
+		glBindBuffer(GL_ARRAY_BUFFER, self.VBO_vec)
+		glBufferData(GL_ARRAY_BUFFER, self.vecLength * np.complex128().nbytes, None, GL_DYNAMIC_DRAW)
+		
+		glBindBuffer(GL_ARRAY_BUFFER, self.VBO_path)
+		glBufferData(GL_ARRAY_BUFFER, self.pathLength * np.complex128().nbytes, None, GL_DYNAMIC_DRAW)
 
 		save = True
 		pT = time.time()
@@ -104,21 +136,9 @@ class World(object):
 		d100 = [0]*50
 		tail = 0
 		
-		if isGif:
-			self.writer = GifWriter(output+'.gif')
-			self.writer.writeHeader(self.dims[0], self.dims[1])
-			colors = [0x00,0x00,0x00,int(self.vecColor[0]),int(self.vecColor[1]),int(self.vecColor[2])]
-			a = np.empty((42))
-			a[0::3] = np.linspace(self.pathColor[0],0,15)[:-1]
-			a[1::3] = np.linspace(self.pathColor[1],0,15)[:-1]
-			a[2::3] = np.linspace(self.pathColor[2],0,15)[:-1]
-			for b in a.tolist():
-				colors.append(int(b))
-			self.writer.writePalette(colors)
-			self.writer.writeApplicationExtensionLoop()
-		else:
-			self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
-			
+		self.shader_vec, self.shader_path = getShaders(isGif, self.pathLength, self.pathFade, self.dims, gifQuality)
+		
+		self.setupOutputFile(output, fps, isGif, gifQuality)
 		while self.time < duration and not glfw.window_should_close(window):
 			t = time.time()
 			self.draw(save)
@@ -187,38 +207,29 @@ class World(object):
 			cutIndex = np.argmax(abs(vecSum-vecSum[-1])<1)+1
 			if self.cutIndex < cutIndex:
 				self.cutIndex = cutIndex
-			vecSum = vecSum[0:self.cutIndex]
 			
-		
 			glClear(GL_COLOR_BUFFER_BIT)
 			glLoadIdentity()
-			glScale(2/self.dims[0],2/self.dims[1],1)
 			
-			glColor3f(self.vecColor[0],self.vecColor[1],self.vecColor[2])
+			glUseProgram(self.shader_vec)
+			glUniform3f(0, self.vecColor[0],self.vecColor[1],self.vecColor[2])
 			glLineWidth(1)
-			array = np.empty((vecSum.size*2))
-			array[0::2] = np.real(vecSum)
-			array[1::2] = np.imag(vecSum)
-			data = (GLfloat * array.size)(*array)
-			glVertexPointer(2, GL_FLOAT, 0, data)
-			glDrawArrays(GL_LINE_STRIP, 0, vecSum.size)
+			glBindBuffer(GL_ARRAY_BUFFER, self.VBO_vec)
+			glBufferSubData(GL_ARRAY_BUFFER, 0, self.cutIndex * np.complex128().nbytes, vecSum[0:self.cutIndex].ctypes.data_as(POINTER(c_double)))
+			glVertexAttribPointer(0, 2, GL_DOUBLE, GL_FALSE, 2* sizeof(c_double), c_void_p(0))
+			glEnableVertexAttribArray(0)
+			glDrawArrays(GL_LINE_STRIP, 0, self.cutIndex)
 			
+			glUseProgram(self.shader_path)
+			glUniform3f(0, self.pathColor[0],self.pathColor[1],self.pathColor[2])
 			glLineWidth(1.5)
-			p = np.roll(self.path,-self.tail)
-			array = np.empty((p.size*2))
-			array[0::2] = np.real(p)
-			array[1::2] = np.imag(p)
-			data = (GLfloat * array.size)(*array)
 			glEnable(GL_BLEND)
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			if self.pathFade:
-				glEnableClientState(GL_COLOR_ARRAY)
-				glColorPointer(4, GL_FLOAT, 0, self.pathColorArr)
-			else:
-				glColor3f(self.pathColor[0],self.pathColor[1],self.pathColor[2])
-			glVertexPointer(2, GL_FLOAT, 0, data)
-			glDrawArrays(GL_LINE_STRIP, 0, p.size)
-			glDisableClientState(GL_COLOR_ARRAY)
+			glBindBuffer(GL_ARRAY_BUFFER, self.VBO_path)
+			glBufferSubData(GL_ARRAY_BUFFER, 0, self.pathLength * np.complex128().nbytes, np.roll(self.path,-self.tail).ctypes.data_as(POINTER(c_double)))
+			glVertexAttribPointer(0, 2, GL_DOUBLE, GL_FALSE, 2* sizeof(c_double), c_void_p(0))
+			glEnableVertexAttribArray(0)
+			glDrawArrays(GL_LINE_STRIP, 0, self.pathLength)
 			glDisable(GL_BLEND)
 			
 			if self.writer != None:
@@ -230,7 +241,7 @@ class World(object):
 		arr = np.flip(np.reshape(np.frombuffer(data, dtype=np.ubyte, count=self.dims[0] * self.dims[1] * len('RGBA')), (self.dims[1], self.dims[0], 4)),0)
 		self.writer.writeFrame(arr)
 
-def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show, isGif):
+def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, backgroundColor, fps, fpf, output, show, isGif, gifQuality):
 	N = len(path)
 	X = np.fft.fft(path)
 	freqs = np.append(np.arange(0,int(N/2)),np.arange(-int(np.ceil(N/2)),0))
@@ -241,4 +252,5 @@ def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailCol
 	world.setPathFade(trailFade)
 	world.setPathColor(trailColor)
 	world.setVectorColor(vectorColor)
-	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show,isGif=isGif)		
+	world.setBackgroundColor(backgroundColor)
+	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show,isGif=isGif,gifQuality=gifQuality)

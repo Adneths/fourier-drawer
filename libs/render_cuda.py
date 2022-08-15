@@ -16,51 +16,12 @@ from .cuda_buffer import CudaOpenGLMappedArray
 import time
 
 from .util import printProgressBar
+from .gif import GifWriter
+from .shader import getShaders
 
 from .render import World
-class CudaWorld(World):
-	VERTEX_SHADER = '''
-	#version 430
-
-	layout(location = 0) in vec2 pos;
-	layout(location = 2) uniform mat2 scale;
-	
-	flat out int ind;
-
-	void main() {
-		//gl_Position = vec4(pos.x/400,pos.y/400, 0.0, 1.0);
-		gl_Position = vec4(scale * pos, 0.0, 1.0);
-		ind = gl_VertexID;
-	}
-	'''
-	
-	FRAGMENT_SHADER = '''
-	#version 430
-	out vec4 FragColor;
-	
-	layout(location = 0) uniform vec3 drawColor;
-
-	void main()
-	{
-		FragColor = vec4(drawColor, 1.0);
-	}
-	'''
-	
-	FRAGMENT_SHADER_FADE = '''
-	#version 430
-	out vec4 FragColor;
-	
-	flat in int ind;
-	layout(location = 0) uniform vec3 drawColor;
-	layout(location = 1) uniform int total;
-
-	void main()
-	{
-		FragColor = vec4(drawColor, float(ind)/total);
-	}
-	'''
-		
-	def render(self, duration=World.CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False):
+class CudaWorld(World):		
+	def render(self, duration=World.CYCLE_DURATION, fps=60, fpf=1, output = 'out', show=False, isGif=False, gifQuality=4):
 		print('Preparing render')
 		
 		#Initialize GL
@@ -77,6 +38,8 @@ class CudaWorld(World):
 		glfw.set_window_attrib(window, glfw.RESIZABLE , glfw.FALSE);
 		
 		#Setup GL
+		glShadeModel(GL_SMOOTH)
+		glClearColor(self.backgroundColor[0],self.backgroundColor[1],self.backgroundColor[2],1)
 		glEnableClientState(GL_VERTEX_ARRAY)
 		
 		self.fbo = GLuint(0)
@@ -95,26 +58,9 @@ class CudaWorld(World):
 		self.vecLength = len(self.weights)+1
 		self.pathLength = int(self.trailDuration*60/self.timescale)
 		
-		self.shader_vec = OpenGL.GL.shaders.compileProgram(
-			OpenGL.GL.shaders.compileShader(self.VERTEX_SHADER, GL_VERTEX_SHADER),
-			OpenGL.GL.shaders.compileShader(self.FRAGMENT_SHADER, GL_FRAGMENT_SHADER),
-		)
-		M = (c_float * 16)(2/self.dims[0],0, 0,2/self.dims[1])
-		glUseProgram(self.shader_vec)
-		glUniformMatrix2fv(2, 1, GL_FALSE, pointer(M))
+		self.shader_vec, self.shader_path = getShaders(isGif, self.pathLength, self.pathFade, self.dims, gifQuality)
 		
-		if self.pathFade:
-			self.shader_path = OpenGL.GL.shaders.compileProgram(
-				OpenGL.GL.shaders.compileShader(self.VERTEX_SHADER, GL_VERTEX_SHADER),
-				OpenGL.GL.shaders.compileShader(self.FRAGMENT_SHADER_FADE, GL_FRAGMENT_SHADER),
-			)
-			glUseProgram(self.shader_path)
-			glUniformMatrix2fv(2, 1, GL_FALSE, pointer(M))
-			glUniform1i(1, self.pathLength)
-		else:
-			self.shader_path = self.shader_vec
-		
-		
+		self.setupOutputFile(output, fps, isGif, gifQuality)
 		
 		VBO_vec, VBO_path = glGenBuffers(2)
 		flags = cudart.cudaGraphicsRegisterFlags.cudaGraphicsRegisterFlagsWriteDiscard
@@ -137,9 +83,8 @@ class CudaWorld(World):
 		pT = time.time()
 		s = 'XX:XX remaining'
 		d100 = [0]*50
-		tail = 0
+		tail = 0		
 		
-		self.writer = skvideo.io.FFmpegWriter('{}.mp4'.format(output), inputdict={'-r': str(fps)}, outputdict={'-vcodec': 'libx264', '-vf': 'format=yuv420p'})
 		while self.time < duration and not glfw.window_should_close(window):
 			t = time.time()
 			self.draw(save)
@@ -225,7 +170,8 @@ class CudaWorld(World):
 				self.saveFrame()
 
 
-def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, fps, fpf, output, show, gpu=None):
+
+def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailColor, vectorColor, backgroundColor, fps, fpf, output, show, isGif, gifQuality, gpu=None):
 	if gpu != None:
 		cp.cuda.Device(gpu).use()
 	N = len(path)
@@ -238,5 +184,6 @@ def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailCol
 	world.setPathFade(trailFade)
 	world.setPathColor(trailColor)
 	world.setVectorColor(vectorColor)
-	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show)		
+	world.setBackgroundColor(backgroundColor)
+	world.render(fps=fps,duration=duration,fpf=fpf,output=output,show=show,isGif=isGif,gifQuality=gifQuality)
 
