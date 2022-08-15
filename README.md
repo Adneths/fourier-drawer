@@ -84,7 +84,7 @@ Note:
 </div>
 
 ```
-python main.py -i sample\yt.svg -s -o sample\yt -t 1/2 -fpf 1 -d 3*pi --density 15 -dim 900x600
+python main.py -i sample\yt.svg -s -o sample\yt -ss 2*pi --density 5 -dim 600x400
 ```
 
 <div align="center">
@@ -93,8 +93,8 @@ python main.py -i sample\yt.svg -s -o sample\yt -t 1/2 -fpf 1 -d 3*pi --density 
 </div>
 
 ```
-python main.py -i sample\chrome.svg -s -o sample\chrome -t 1/8 -fpf 2 -d 3*pi --density 15 -tl 2.5*pi
-python main.py -i sample\grass.png -b -o sample\grass -t 1/8 -fpf 2 -d 3*pi -tl 2.5*pi -tc #00ff00 -vc #888888
+python main.py -i sample\chrome.svg -s -o sample\chrome -t 1/8 -fpf 4 --density 25 -ss 2*pi -tl 1.5*pi
+python main.py -i sample\grass.png -b -o sample\grass -t 1/8 -fpf 4 -d 3*pi -dim 400x400 -tl 2.5*pi -tc #00ff00 -vc #888888
 ```
 
 <div align="center">
@@ -102,5 +102,5 @@ python main.py -i sample\grass.png -b -o sample\grass -t 1/8 -fpf 2 -d 3*pi -tl 
 </div>
 
 ```
-python main.py -i sample\zvs.png -b -o sample\zvs -t 1/64 -fpf 16 -d 3*pi -ntf
+python main.py -i sample\zvs.png -b -o sample\zvs -t 1/64 -fpf 24 -d 2*pi -ntf
 ```
