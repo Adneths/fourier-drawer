@@ -13,7 +13,7 @@
 3. Run `pip install -r requirements.txt`
 
 ### Installation for Cuda
-Requires a Cuda compatable GPU
+Requires a Cuda compatible GPU
 1. Follow instructions [here](https://docs.cupy.dev/en/stable/install.html) to install the proper version of cupy
 2. Run `pip install -r requirements_cuda.txt`
 
