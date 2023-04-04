@@ -116,10 +116,6 @@ fpf = int(strMath(args.frames_per_frame, var))
 start = strMath(args.start, var)
 memLim = strToMemory(args.memory_limit)
 
-from libs.cpp_render import renderPath
-renderPath(path, dims, timescale/60, duration, start, trailLength, tColor, vColor, args.fps, fpf, args.output)
-
-'''
 if args.gpu != None:
 	from libs.render_cuda import renderPath
 	if args.gpu == '*':
@@ -130,4 +126,3 @@ if args.gpu != None:
 else:
 	from libs.render import renderPath
 	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, memLim, start)
-'''

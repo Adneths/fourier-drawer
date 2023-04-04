@@ -234,6 +234,9 @@ def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailCol
 	N = len(path)
 	X = np.fft.fft(path)
 	freqs = np.append(np.arange(0,int(N/2)),np.arange(-int(np.ceil(N/2)),0))
+	print(len(X))
+	print(len(freqs))
+	exit()
 	
 	matSize = computeMatSize(memLim - 2*X.nbytes - freqs.nbytes - int(trailLength*60/timescale)*(np.dtype(np.complex128).itemsize + (4*np.dtype(float).itemsize if trailFade else 0)), X.nbytes, fpf)
 	
