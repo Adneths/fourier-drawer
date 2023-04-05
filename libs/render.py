@@ -107,8 +107,14 @@ class World(object):
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorBuffer)
 		
 		glClearColor(0,0,0,1)
-
+		
+		sTime = time.time();
 		self.renderLoop(window, duration, fps, fpf, output, show, matSize)
+		s = time.time() - sTime;
+		if s < 3600:
+			print('\nTotal Time:{:02d}:{:02.3f}'.format(int(s/60), s%60))
+		else:
+			print('\nTotal Time:{}:{:02d}:{:02.3f}'.format(int(s/3600), int((s%3600)/60), s%60))
 		glfw.terminate()
 		return
 	
@@ -234,9 +240,6 @@ def renderPath(path, dims, duration, timescale, trailLength, trailFade, trailCol
 	N = len(path)
 	X = np.fft.fft(path)
 	freqs = np.append(np.arange(0,int(N/2)),np.arange(-int(np.ceil(N/2)),0))
-	print(len(X))
-	print(len(freqs))
-	exit()
 	
 	matSize = computeMatSize(memLim - 2*X.nbytes - freqs.nbytes - int(trailLength*60/timescale)*(np.dtype(np.complex128).itemsize + (4*np.dtype(float).itemsize if trailFade else 0)), X.nbytes, fpf)
 	
