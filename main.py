@@ -116,6 +116,7 @@ fpf = int(strMath(args.frames_per_frame, var))
 start = strMath(args.start, var)
 memLim = strToMemory(args.memory_limit)
 
+print('Loading Libraries')
 from libs.cpp_render import renderPath
 renderPath(path, dims, timescale/60, duration, start, trailLength, tColor, vColor, args.fps, fpf, args.output)
 

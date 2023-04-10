@@ -1,13 +1,16 @@
-#include <iostream>
+﻿#include <iostream>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
+#include <cstdlib>
 
 #include "core.h"
 #include "Shader.h"
 #include "LineStrip.h"
 #include <complex>
+#include <string>
 
 #include "VideoEncoder.h"
 #include "FourierSeries.h"
@@ -17,14 +20,58 @@
 
 #define PI 3.141592
 
+//https://stackoverflow.com/a/26221725
+template<typename ... Args>
+std::string string_format(const std::string& format, Args ... args)
+{
+	int size_s = std::snprintf(nullptr, 0, format.c_str(), args ...) + 1; // Extra space for '\0'
+	if (size_s <= 0) { throw std::runtime_error("Error during formatting."); }
+	auto size = static_cast<size_t>(size_s);
+	std::unique_ptr<char[]> buf(new char[size]);
+	std::snprintf(buf.get(), size, format.c_str(), args ...);
+	return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
+}
+
+std::string formatTime(int seconds)
+{
+	if (seconds > 3599)
+		return string_format("%d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60);
+	return string_format("%02d:%02d", seconds / 60, seconds % 60);
+}
+std::string formatTime(double seconds)
+{
+	int sec = (int)seconds;
+	if (sec > 3599)
+		return string_format("%d:%02d:%02d.%03d", sec / 3600, (sec % 3600) / 60, sec % 60, (int)((seconds - sec) * 1000));
+	return string_format("%02d:%02d.%03d", sec / 60, sec % 60, (int)((seconds - sec) * 1000));
+}
+
+bool alive = true;
+void keyboard_interrupt(int signum) {
+	alive = false;
+}
+
+char buf[256];
+int printProgressBar(float part, int barLength = 40, int minLength = 0, std::string prefix = "", std::string suffix = "")
+{
+	std::string bar = std::string((int)(barLength * part), '*');
+	bar += std::string(barLength - bar.length(), ' ');
+	int ret = sprintf(buf, "%s |%s| %.1f%% %s", prefix.c_str(), bar.c_str(), part * 100, suffix.c_str());
+	printf("%-*s\r", minLength, buf);
+	return ret;
+}
+
 extern "C" {
 	__declspec(dllexport) int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start, float trailLength, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output)
 	{
+		signal(SIGINT, keyboard_interrupt);
+
 		if (!glfwInit()) {
 			std::cerr << "Failed to initialize GLFW" << std::endl;
 			return -1;
 		}
 
+		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 		GLFWwindow* window = glfwCreateWindow(width, height, "Fourier", NULL, NULL);
 		if (!window) {
 			std::cerr << "Failed to open GLFW window." << std::endl;
@@ -65,20 +112,45 @@ extern "C" {
 		float t = start;
 		float end = start + duration;
 		uint8_t* frameraw = (uint8_t*)malloc(sizeof(uint8_t) * width * height * 3);
-		while (t < end) {
-			glfwPollEvents();
-			glfwSwapBuffers(window);
 
+		std::string ETR = "XX:XX";
+		int ind = 0;
+		double sTime = glfwGetTime();
+		double pTime = glfwGetTime();
+		double d64[64] = {0};
+		int len = 0;
+		while (t < end && alive) {
+			//glfwPollEvents();
+			//glfwSwapBuffers(window);
+
+			double time = glfwGetTime();
 			glClear(GL_COLOR_BUFFER_BIT);
 			vector->draw(vectorShader, viewMtx);
-			//trail->draw(vectorShader, viewMtx);
+			trail->draw(vectorShader, viewMtx);
 
 			t += fourier->increment(fpf);
 			fourier->updateBuffers();
 
 			glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, frameraw);
 			encoder->pushFrame(frameraw);
+
+			d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
+			if (glfwGetTime() - pTime > 2)
+			{
+				pTime = glfwGetTime();
+				double sum = 0;
+				for (double d : d64)
+					sum += d;
+				sum /= 64;
+				ETR = formatTime((int)(sum * (end - t) / dt));
+			}
+
+			//len = printProgressBar((t - start) / duration, 40, len, "Rendering", ETR);
 		}
+		if (alive)
+			std::cout << std::endl << "Total Time: " << formatTime(glfwGetTime() - sTime) << std::endl;
+		else
+			std::cout << std::endl << "Program Terminated" << std::endl;
 		free(frameraw);
 		encoder->close();
 

@@ -11,7 +11,7 @@ extern "C" {
 }
 
 //Modified from https://stackoverflow.com/a/59559256
-
+//https://stackoverflow.com/a/11845369
 void VideoEncoder::pushFrame(uint8_t* data)
 {
     if (!this->initialized)
@@ -34,7 +34,7 @@ void VideoEncoder::pushFrame(uint8_t* data)
     int inLinesize[1] = { 3 * cctx->width };
     // From RGB to YUV
     sws_scale(swsCtx, (const uint8_t* const*)&data, inLinesize, 0, cctx->height, videoFrame->data, videoFrame->linesize);
-    videoFrame->pts = (1.0 / fps) * 91530 * (frameCounter++); // Magic number?
+    videoFrame->pts = frameCounter++;
     if ((err = avcodec_send_frame(cctx, videoFrame)) < 0) {
         std::cout << "Failed to send frame" << err << std::endl;
         return;
@@ -45,6 +45,8 @@ void VideoEncoder::pushFrame(uint8_t* data)
     pkt.size = 0;
     pkt.flags |= AV_PKT_FLAG_KEY;
     if (avcodec_receive_packet(cctx, &pkt) == 0) {
+        pkt.pts = av_rescale_q(pkt.pts, cctx->time_base, stream->time_base);
+        pkt.dts = av_rescale_q(pkt.dts, cctx->time_base, stream->time_base);
         av_interleaved_write_frame(ofctx, &pkt);
         av_packet_unref(&pkt);
     }
@@ -56,10 +58,13 @@ void VideoEncoder::close() {
     av_init_packet(&pkt);
     pkt.data = NULL;
     pkt.size = 0;
+    pkt.flags |= AV_PKT_FLAG_KEY;
 
     for (;;) {
         avcodec_send_frame(cctx, NULL);
         if (avcodec_receive_packet(cctx, &pkt) == 0) {
+            pkt.pts = av_rescale_q(pkt.pts, cctx->time_base, stream->time_base);
+            pkt.dts = av_rescale_q(pkt.dts, cctx->time_base, stream->time_base);
             av_interleaved_write_frame(ofctx, &pkt);
             av_packet_unref(&pkt);
         }
@@ -102,7 +107,6 @@ bool VideoEncoder::initialize()
         std::cout << "can't create output format" << std::endl;
         return false;
     }
-    //oformat->video_codec = AV_CODEC_ID_H265;
 
     if (avformat_alloc_output_context2(&ofctx, oformat, nullptr, filename))
     {
@@ -131,29 +135,27 @@ bool VideoEncoder::initialize()
         return false;
     }
 
-
+    ofctx->bit_rate = bitrate;
     stream->codecpar->codec_id = oformat->video_codec;
     stream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
     stream->codecpar->width = width;
     stream->codecpar->height = height;
     stream->codecpar->format = AV_PIX_FMT_YUV420P;
-    stream->codecpar->bit_rate = bitrate;
     avcodec_parameters_to_context(cctx, stream->codecpar);
     cctx->time_base = { 1 , fps };
-    cctx->max_b_frames = 2;
-    cctx->gop_size = 12;
     cctx->framerate = { fps , 1 };
 
     
     if (stream->codecpar->codec_id == AV_CODEC_ID_H264) {
-        av_opt_set(cctx, "preset", "medium", 0);
+        av_opt_set(cctx, "preset", "ultrafast", 0);
     }/*
     else if (stream->codecpar->codec_id == AV_CODEC_ID_H265)
     {
-        av_opt_set(cctx, "preset", "medium", 0);
+        av_opt_set(cctx, "preset", "ultrafast", 0);
     }*/
 
     avcodec_parameters_from_context(stream->codecpar, cctx);
+
 
     int err;
     if ((err = avcodec_open2(cctx, codec, NULL)) < 0) {

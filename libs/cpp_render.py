@@ -21,4 +21,4 @@ def renderPath(path, dims, dt, duration, start, trailLength, trailColor, vectorC
 	data[1::2] = np.imag(X)
 	if not output.endswith('.mp4'):
 		output += '.mp4';
-	print(render_lib.render((c_float * len(data))(*data), len(data), dims[0], dims[1], dt, duration, start, trailLength, hex2vec(trailColor), hex2vec(vectorColor), fps, fpf, str.encode(output)))
+	render_lib.render((c_float * len(data))(*data), len(data), dims[0], dims[1], dt, duration, start, trailLength, hex2vec(trailColor), hex2vec(vectorColor), fps, fpf, str.encode(output))

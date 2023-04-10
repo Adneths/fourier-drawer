@@ -36,8 +36,7 @@ link_directories(
     $ENV{FFMPEG_LIB_PATH}
 )
 
-add_library(render SHARED 
-    ${SOURCES} ${HEADERS})
+add_library(render SHARED ${SOURCES} ${HEADERS})
 target_link_libraries(render PUBLIC ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp avcodec.lib avutil.lib avformat.lib swscale.lib)
 
 add_custom_command(TARGET render POST_BUILD
