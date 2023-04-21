@@ -3,10 +3,10 @@
 #include "LineStrip.h"
 #include "core.h"
 
-class CyclicalLineStrip : LineStrip {
+class CyclicalLineStrip : public LineStrip {
 public:
-	size_t head;
-	CyclicalLineStrip(glm::vec2 vertex, size_t count, glm::vec3 color);
+	uint32_t head;
+	CyclicalLineStrip(glm::vec2 vertex, uint32_t count, glm::vec3 color);
 	void draw(GLuint shader, glm::mat3 viewMtx);
 	~CyclicalLineStrip();
 

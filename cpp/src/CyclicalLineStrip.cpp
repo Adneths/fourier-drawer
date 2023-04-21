@@ -1,7 +1,7 @@
 #include "CyclicalLineStrip.h"
 
 
-CyclicalLineStrip::CyclicalLineStrip(glm::vec2 vertex, size_t count, glm::vec3 color) : LineStrip(vertex, count + 1, color)
+CyclicalLineStrip::CyclicalLineStrip(glm::vec2 vertex, uint32_t count, glm::vec3 color) : LineStrip(vertex, count + 1, color)
 {
 	this->head = 0;
 }

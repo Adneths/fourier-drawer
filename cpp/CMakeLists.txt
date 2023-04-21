@@ -8,6 +8,7 @@ set (SOURCES
     src/VideoEncoder.cpp
     
     src/LineStrip.cpp
+    src/Lines.cpp
     src/CyclicalLineStrip.cpp
     
     src/NpFourierSeries.cpp
@@ -17,7 +18,8 @@ set (HEADERS
     include/core.h
     include/Shader.h
     include/VideoEncoder.h
-
+    
+    include/Lines.h
     include/LineStrip.h
     include/CyclicalLineStrip.h
 

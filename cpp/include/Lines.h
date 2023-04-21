@@ -2,7 +2,7 @@
 
 #include "core.h"
 
-class LineStrip {
+class Lines {
 protected:
 	GLuint VBO, VAO;
 	glm::vec3 color;
@@ -10,23 +10,23 @@ protected:
 public:
 	/**
 	 * @param vertex the vertex value to copy into every vertex
-	 * @param count the number of line segments
+	 * @param count the number of lines
 	 * @param the color of the line strip
 	 */
-	LineStrip(glm::vec2 vertex, uint32_t count, glm::vec3 color);
+	Lines(glm::vec2 vertex, uint32_t count, glm::vec3 color);
 	/**
 	 * @param vertices the vertex values to be copied
-	 * @param count the number of line segments
+	 * @param count the number of lines
 	 * @param the color of the line strip
 	 */
-	LineStrip(float* vertices, uint32_t length, glm::vec3 color);
+	Lines(float* vertices, uint32_t count, glm::vec3 color);
 	virtual void draw(GLuint shader, glm::mat3 viewMtx);
-	virtual ~LineStrip();
+	virtual ~Lines();
 
 	virtual GLuint getBuffer();
 	virtual void finish();
 	/**
-	 * @return the number of line segments
+	 * @return the number of lines
 	 */
 	uint32_t getCount();
 };

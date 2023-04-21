@@ -95,14 +95,14 @@ extern "C" {
 		//Vertical flip
 		glm::mat3 viewMtx = glm::mat3(2.0f/width, 0, 0, 0, -2.0f/height, 0, 0, 0, 1);
 		size_t vectorSize = size / 2;
-		size_t trailSize = (int)(2 * PI * 60 / trailLength);
+		size_t trailSize = (size_t)(trailLength / dt);
 
 		nc::NdArray<std::complex<float>> vecs((std::complex<float>*)data, vectorSize);
 		vecs = nc::append(nc::zeros<std::complex<float>>(1,1), vecs);
 
-		LineStrip* vector = new LineStrip(glm::vec2(0,0), vectorSize+1, vectorColor);
-		CyclicalLineStrip* trail = new CyclicalLineStrip(glm::vec2(-300,-200), trailSize, trailColor);
-
+		LineStrip* vector = new LineStrip(glm::vec2(0,0), vectorSize, vectorColor);
+		Lines* trail = new Lines(glm::vec2(0,0), trailSize, trailColor);
+		
 		VideoEncoder* encoder = new VideoEncoder(output, width, height, fps);
 		encoder->initialize();
 
@@ -145,7 +145,7 @@ extern "C" {
 				ETR = formatTime((int)(sum * (end - t) / dt));
 			}
 
-			//len = printProgressBar((t - start) / duration, 40, len, "Rendering", ETR);
+			len = printProgressBar((t - start) / duration, 40, len, "Rendering", ETR);
 		}
 		if (alive)
 			std::cout << std::endl << "Total Time: " << formatTime(glfwGetTime() - sTime) << std::endl;
