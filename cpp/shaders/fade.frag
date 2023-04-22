@@ -1,13 +1,14 @@
 #version 330 core
 
-flat in int ind;
+in float t;
 
 uniform vec3 DiffuseColor;
-uniform int total;
+uniform float time;
+uniform float trailLength;
 
 out vec4 fragColor;
 
 void main()
 {
-	fragColor = vec4(DiffuseColor, float(ind)/total);
+	fragColor = vec4(DiffuseColor, 1.0f-(time-t)/trailLength);
 }

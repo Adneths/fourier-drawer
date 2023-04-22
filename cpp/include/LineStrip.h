@@ -20,7 +20,7 @@ public:
 	 * @param the color of the line strip
 	 */
 	LineStrip(float* vertices, uint32_t length, glm::vec3 color);
-	virtual void draw(GLuint shader, glm::mat3 viewMtx);
+	virtual void draw(GLuint shader, glm::mat3 viewMtx, float time = 0);
 	virtual ~LineStrip();
 
 	virtual GLuint getBuffer();

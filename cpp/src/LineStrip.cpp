@@ -32,7 +32,7 @@ LineStrip::LineStrip(float* vertices, uint32_t count, glm::vec3 color)
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 }
-void LineStrip::draw(GLuint shader, glm::mat3 viewMtx)
+void LineStrip::draw(GLuint shader, glm::mat3 viewMtx, float time)
 {
 	glUseProgram(shader);
 	glUniformMatrix3fv(glGetUniformLocation(shader, "viewMtx"), 1, GL_FALSE, (float*)&viewMtx);

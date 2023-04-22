@@ -11,15 +11,18 @@ class NpForuierSeries : public FourierSeries {
 public:
 	NpForuierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* series, size_t size, float dt, size_t cacheSize);
 	~NpForuierSeries();
-	float increment(size_t count);
+	float increment(size_t count, float time);
 	void updateBuffers();
 private:
 	size_t head;
-	std::complex<float> last;
+	float last[3];
 
 	float dt;
-	nc::NdArray<std::complex<float>> vector, step, pathCache;
+	nc::NdArray<std::complex<float>> vector, step;
+	float* pathCache;
 	size_t cacheSize;
 	LineStrip* vectorLine;
 	Lines* pathLine;
+
+	size_t lineWidth, cacheFloatSize, pathBufferSize;
 };

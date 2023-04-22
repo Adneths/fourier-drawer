@@ -13,49 +13,96 @@ NpForuierSeries::NpForuierSeries(LineStrip* vectorLine, Lines* pathLine, std::co
 	step = nc::append({ std::complex<float>(0,0) },
 			nc::exp(std::complex<float>(0, 1) * dt * freqs.astype<std::complex<float>>()));
 
-	pathCache = nc::empty<std::complex<float>>(cacheSize, 1);
+	pathCache = (float*)malloc(sizeof(float) * (cacheFloatSize=(pathLine->isTimestamped() ? 3ull : 2ull) * cacheSize * 2ull));
 
-	last = nc::sum(vector)[0];
+	std::complex<float> sum = nc::sum(vector)[0];
+	last[0] = sum.real(); last[1] = sum.imag(); last[2] = 0;
 	glBindBuffer(GL_ARRAY_BUFFER, vectorLine->getBuffer());
 	glBufferSubData(GL_ARRAY_BUFFER, 0, vectorLine->getCount() * 2ull * sizeof(float), (float*)nc::cumsum(vector).dataRelease());
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
-	glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &last);
+	if(pathLine->isTimestamped())
+		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &last);
+	else
+		glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &last);
+
+
+	lineWidth = (pathLine->isTimestamped() ? 6ull : 4ull);
+	pathBufferSize = pathLine->getCount() * lineWidth;
 }
 NpForuierSeries::~NpForuierSeries()
 {
 }
 
-float NpForuierSeries::increment(size_t count)
+float NpForuierSeries::increment(size_t count, float time)
 {
-	for (int i = 0; i < count; i++)
+	if (pathLine->isTimestamped())
 	{
-		vector *= step;
-		pathCache[i] = nc::sum(vector)[0];
+		for(int i = 0; i < 3; i++)
+			pathCache[i] = last[i];
+		for (int i = 0; i < count; i++)
+		{
+			vector *= step;
+			std::complex<float> sum = nc::sum(vector)[0];
+			pathCache[i * 6 + 0 + 3] = sum.real();
+			pathCache[i * 6 + 1 + 3] = sum.imag();
+			pathCache[i * 6 + 2 + 3] = time;// +dt * i;
+			if (i != count - 1)
+			{
+				pathCache[i * 6 + 3 + 3] = sum.real();
+				pathCache[i * 6 + 4 + 3] = sum.imag();
+				pathCache[i * 6 + 5 + 3] = time;// +dt * i;
+			}
+		}
+	}
+	else
+	{
+		for (int i = 0; i < 2; i++)
+			pathCache[i] = last[i];
+		for (int i = 0; i < count; i++)
+		{
+			vector *= step;
+			std::complex<float> sum = nc::sum(vector)[0];
+			pathCache[i * 4 + 0 + 2] = sum.real();
+			pathCache[i * 4 + 1 + 2] = sum.imag();
+			if (i != count - 1)
+			{
+				pathCache[i * 4 + 2 + 2] = sum.real();
+				pathCache[i * 4 + 3 + 2] = sum.imag();
+			}
+		}
 	}
 
 	return count * dt;
 }
 
-int i = 0;
+
 void NpForuierSeries::updateBuffers()
 {
 	glBindBuffer(GL_ARRAY_BUFFER, vectorLine->getBuffer());
-	glBufferSubData(GL_ARRAY_BUFFER, 0, (vectorLine->getCount() + 1) * 2ull * sizeof(float), (float*)nc::cumsum(vector).dataRelease());
+	glBufferSubData(GL_ARRAY_BUFFER, 0, (vectorLine->getCount() + 1ull) * 2ull * sizeof(float), (float*)nc::cumsum(vector).dataRelease());
 	vectorLine->finish();
 
-	nc::NdArray<std::complex<float>> init = nc::empty<std::complex<float>>(1, 1); init(0, 0) = last; last = pathCache[cacheSize-1];
-	size_t cacheFloatSize = cacheSize * 4ull; size_t pathBufferSize = pathLine->getCount() * 4ull;
-	//Beacuse NumCpp repeat does not work correctly
-	nc::NdArray<std::complex<float>> lines = nc::reshape(nc::transpose(nc::repeat(nc::append(init, pathCache), nc::Shape(2, 1))), nc::Shape(1, -1));
-	lines = lines(0, nc::Slice(1, -1));
-	float* data = (float*)lines.dataRelease();
+	for (int i = 0; i < (pathLine->isTimestamped() ? 3 : 2); i++)
+		last[i] = pathCache[i + (cacheSize-1) * lineWidth + (pathLine->isTimestamped() ? 3ull : 2ull)];
 
 	size_t len = std::min(cacheFloatSize, pathBufferSize - head);
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
-	glBufferSubData(GL_ARRAY_BUFFER, head * sizeof(float), len * sizeof(float), data);
+	glBufferSubData(GL_ARRAY_BUFFER, head * sizeof(float), len * sizeof(float), pathCache);
 	if (len < cacheFloatSize)
-		glBufferSubData(GL_ARRAY_BUFFER, 0, (cacheFloatSize - len) * sizeof(float), data+len);
-	head = (head + cacheFloatSize) % (pathLine->getCount() * 4ull);
-	
+		glBufferSubData(GL_ARRAY_BUFFER, 0, (cacheFloatSize - len) * sizeof(float), pathCache + len);
+	head = (head + cacheFloatSize) % (pathBufferSize);
 	pathLine->finish();
+
+	/*
+	float data[30];
+	glGetBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 30, data);
+	for (int i = 0; i < 10; i++)
+	{
+		std::cout << '(';
+		for (int j = 0; j < 3; j++)
+			std::cout << data[i * 3 + j] << " ";
+		std::cout << ") ";
+	}
+	std::cout << std::endl;
+	*/
 }

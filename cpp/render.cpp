@@ -62,7 +62,7 @@ int printProgressBar(float part, int barLength = 40, int minLength = 0, std::str
 }
 
 extern "C" {
-	__declspec(dllexport) int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start, float trailLength, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output)
+	__declspec(dllexport) int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start, float trailLength, bool trailFade, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output, bool show)
 	{
 		signal(SIGINT, keyboard_interrupt);
 
@@ -84,6 +84,7 @@ extern "C" {
 		glfwSwapInterval(1);
 
 		GLuint vectorShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag");
+		GLuint pathShader = trailFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag") : vectorShader;
 		if (!vectorShader) {
 			std::cerr << "Failed to initialize shader program" << std::endl;
 			glfwDestroyWindow(window);
@@ -91,17 +92,24 @@ extern "C" {
 			return -1;
 		}
 
-
 		//Vertical flip
 		glm::mat3 viewMtx = glm::mat3(2.0f/width, 0, 0, 0, -2.0f/height, 0, 0, 0, 1);
 		size_t vectorSize = size / 2;
 		size_t trailSize = (size_t)(trailLength / dt);
 
+		if (trailFade)
+		{
+			glUseProgram(pathShader);
+			glUniform1f(glGetUniformLocation(pathShader, "trailLength"), trailLength);
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		}
+
 		nc::NdArray<std::complex<float>> vecs((std::complex<float>*)data, vectorSize);
 		vecs = nc::append(nc::zeros<std::complex<float>>(1,1), vecs);
 
 		LineStrip* vector = new LineStrip(glm::vec2(0,0), vectorSize, vectorColor);
-		Lines* trail = new Lines(glm::vec2(0,0), trailSize, trailColor);
+		Lines* trail = new Lines(glm::vec2(0,0), trailSize, trailColor, trailFade);
 		
 		VideoEncoder* encoder = new VideoEncoder(output, width, height, fps);
 		encoder->initialize();
@@ -126,9 +134,9 @@ extern "C" {
 			double time = glfwGetTime();
 			glClear(GL_COLOR_BUFFER_BIT);
 			vector->draw(vectorShader, viewMtx);
-			trail->draw(vectorShader, viewMtx);
+			trail->draw(pathShader, viewMtx, t);
 
-			t += fourier->increment(fpf);
+			t += fourier->increment(fpf, t);
 			fourier->updateBuffers();
 
 			glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, frameraw);
@@ -158,6 +166,10 @@ extern "C" {
 		delete trail;
 		delete encoder;
 		delete fourier;
+
+		glDeleteProgram(vectorShader);
+		if (trailFade)
+			glDeleteProgram(pathShader);
 
 		glfwDestroyWindow(window);
 		glfwTerminate();
