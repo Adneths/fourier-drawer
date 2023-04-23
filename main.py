@@ -120,16 +120,3 @@ memLim = strToMemory(args.memory_limit)
 print('Loading Libraries')
 from libs.cpp_render import renderPath
 renderPath(path, dims, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, args.debug)
-
-'''
-if args.gpu != None:
-	from libs.render_cuda import renderPath
-	if args.gpu == '*':
-		gpu = None
-	else:
-		gpu = int(args.gpu)
-	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, memLim, start, gpu)
-else:
-	from libs.render import renderPath
-	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, memLim, start)
-'''

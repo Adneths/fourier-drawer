@@ -5,7 +5,7 @@ enum ShaderType {
     fragment
 };
 
-GLuint LoadSingleShader(const char* shaderFilePath, ShaderType type) {
+GLuint LoadSingleShader(const char* shaderFilePath, ShaderType type, bool debug = false) {
     // Create a shader id.
     GLuint shaderID = 0;
     if (type == vertex)
@@ -34,7 +34,8 @@ GLuint LoadSingleShader(const char* shaderFilePath, ShaderType type) {
     int InfoLogLength;
 
     // Compile Shader.
-    std::cerr << "Compiling shader: " << shaderFilePath << std::endl;
+    if (debug)
+        std::cout << "Compiling shader: " << shaderFilePath << std::endl;
     char const* sourcePointer = shaderCode.c_str();
     glShaderSource(shaderID, 1, &sourcePointer, NULL);
     glCompileShader(shaderID);
@@ -51,18 +52,20 @@ GLuint LoadSingleShader(const char* shaderFilePath, ShaderType type) {
     }
     else {
         if (type == vertex)
-            printf("Successfully compiled vertex shader!\n");
+            if (debug)
+                printf("Successfully compiled vertex shader!\n");
         else if (type == fragment)
-            printf("Successfully compiled fragment shader!\n");
+            if (debug)
+                printf("Successfully compiled fragment shader!\n");
     }
 
     return shaderID;
 }
 
-GLuint LoadShaders(const char* vertexFilePath, const char* fragmentFilePath) {
+GLuint LoadShaders(const char* vertexFilePath, const char* fragmentFilePath, bool debug = false) {
     // Create the vertex shader and fragment shader.
-    GLuint vertexShaderID = LoadSingleShader(vertexFilePath, vertex);
-    GLuint fragmentShaderID = LoadSingleShader(fragmentFilePath, fragment);
+    GLuint vertexShaderID = LoadSingleShader(vertexFilePath, vertex, debug);
+    GLuint fragmentShaderID = LoadSingleShader(fragmentFilePath, fragment, debug);
 
     // Check both shaders.
     if (vertexShaderID == 0 || fragmentShaderID == 0) return 0;
@@ -71,7 +74,8 @@ GLuint LoadShaders(const char* vertexFilePath, const char* fragmentFilePath) {
     int InfoLogLength;
 
     // Link the program.
-    printf("Linking program\n");
+    if(debug)
+        printf("Linking program\n");
     GLuint programID = glCreateProgram();
     glAttachShader(programID, vertexShaderID);
     glAttachShader(programID, fragmentShaderID);
@@ -89,7 +93,8 @@ GLuint LoadShaders(const char* vertexFilePath, const char* fragmentFilePath) {
         return 0;
     }
     else {
-        printf("Successfully linked program!\n");
+        if(debug)
+            printf("Successfully linked program!\n");
     }
 
     // Detach and delete the shaders as they are no longer needed.

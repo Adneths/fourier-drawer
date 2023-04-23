@@ -97,8 +97,8 @@ extern "C" {
 			glDebugMessageCallback(errorCallback, 0);
 		}
 
-		GLuint vectorShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag");
-		GLuint pathShader = trailFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag") : vectorShader;
+		GLuint vectorShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag", debug);
+		GLuint pathShader = trailFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag", debug) : vectorShader;
 		if (!vectorShader) {
 			std::cerr << "Failed to initialize shader program" << std::endl;
 			glfwDestroyWindow(window);
@@ -154,7 +154,6 @@ extern "C" {
 
 			t += fourier->increment(fpf, t);
 			fourier->updateBuffers();
-
 
 			uint8_t* ptr = multiBuffer->nextPBO();
 			if (ptr != nullptr)
