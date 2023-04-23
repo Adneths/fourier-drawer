@@ -65,6 +65,7 @@ parser.add_argument('--info', action='store_true', help='Prints some info about 
 parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
 
 parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
+parser.add_argument('--debug', action='store_true', help='prints some debug info')
 
 args = parser.parse_args()
 vColor = int(args.vector_color[1:], base=16)
@@ -118,7 +119,7 @@ memLim = strToMemory(args.memory_limit)
 
 print('Loading Libraries')
 from libs.cpp_render import renderPath
-renderPath(path, dims, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show)
+renderPath(path, dims, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, args.debug)
 
 '''
 if args.gpu != None:

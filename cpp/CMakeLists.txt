@@ -7,11 +7,12 @@ set (SOURCES
     src/Shader.cpp
     src/VideoEncoder.cpp
     
-    src/LineStrip.cpp
     src/Lines.cpp
-    src/CyclicalLineStrip.cpp
+    src/LineStrip.cpp
     
     src/NpFourierSeries.cpp
+
+    src/MultiBuffer.cpp
 )
 
 set (HEADERS
@@ -21,10 +22,11 @@ set (HEADERS
     
     include/Lines.h
     include/LineStrip.h
-    include/CyclicalLineStrip.h
 
     include/FourierSeries.h
     include/NpFourierSeries.h
+
+    include/MultiBuffer.h
 )
 
 find_package(OpenGL REQUIRED)

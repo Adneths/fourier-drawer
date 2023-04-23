@@ -92,17 +92,4 @@ void NpForuierSeries::updateBuffers()
 		glBufferSubData(GL_ARRAY_BUFFER, 0, (cacheFloatSize - len) * sizeof(float), pathCache + len);
 	head = (head + cacheFloatSize) % (pathBufferSize);
 	pathLine->finish();
-
-	/*
-	float data[30];
-	glGetBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 30, data);
-	for (int i = 0; i < 10; i++)
-	{
-		std::cout << '(';
-		for (int j = 0; j < 3; j++)
-			std::cout << data[i * 3 + j] << " ";
-		std::cout << ") ";
-	}
-	std::cout << std::endl;
-	*/
 }

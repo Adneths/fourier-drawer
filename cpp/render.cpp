@@ -15,6 +15,7 @@
 #include "VideoEncoder.h"
 #include "FourierSeries.h"
 #include "NpFourierSeries.h"
+#include "MultiBuffer.h"
 
 #include "NumCpp.hpp"
 
@@ -61,8 +62,15 @@ int printProgressBar(float part, int barLength = 40, int minLength = 0, std::str
 	return ret;
 }
 
+void GLAPIENTRY errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
+{
+	fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+		(type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
+		type, severity, message);
+}
+
 extern "C" {
-	__declspec(dllexport) int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start, float trailLength, bool trailFade, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output, bool show)
+	__declspec(dllexport) int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start, float trailLength, bool trailFade, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output, bool show, bool debug)
 	{
 		signal(SIGINT, keyboard_interrupt);
 
@@ -82,6 +90,12 @@ extern "C" {
 		glfwMakeContextCurrent(window);
 		glewInit();
 		glfwSwapInterval(1);
+
+		if (debug)
+		{
+			glEnable(GL_DEBUG_OUTPUT);
+			glDebugMessageCallback(errorCallback, 0);
+		}
 
 		GLuint vectorShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag");
 		GLuint pathShader = trailFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag") : vectorShader;
@@ -115,6 +129,7 @@ extern "C" {
 		encoder->initialize();
 
 		FourierSeries* fourier = new NpForuierSeries(vector, trail, (std::complex<float>*)data, vectorSize, dt, fpf);
+		MultiBuffer* multiBuffer = new MultiBuffer(width, height, 2);
 
 		glClearColor(0, 0, 0, 1);
 		float t = start;
@@ -135,12 +150,20 @@ extern "C" {
 			glClear(GL_COLOR_BUFFER_BIT);
 			vector->draw(vectorShader, viewMtx);
 			trail->draw(pathShader, viewMtx, t);
+			multiBuffer->nextVBO();
 
 			t += fourier->increment(fpf, t);
 			fourier->updateBuffers();
 
-			glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, frameraw);
-			encoder->pushFrame(frameraw);
+
+			uint8_t* ptr = multiBuffer->nextPBO();
+			if (ptr != nullptr)
+			{
+				memcpy(frameraw, ptr, width * height * 3);
+				encoder->pushFrame(frameraw);
+			}
+			else
+				std::cout << std::endl << "Frame dropped, unable to read data" << std::endl;
 
 			d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
 			if (glfwGetTime() - pTime > 2)
@@ -150,7 +173,7 @@ extern "C" {
 				for (double d : d64)
 					sum += d;
 				sum /= 64;
-				ETR = formatTime((int)(sum * (end - t) / dt));
+				ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
 			}
 
 			len = printProgressBar((t - start) / duration, 40, len, "Rendering", ETR);
@@ -166,6 +189,7 @@ extern "C" {
 		delete trail;
 		delete encoder;
 		delete fourier;
+		delete multiBuffer;
 
 		glDeleteProgram(vectorShader);
 		if (trailFade)
