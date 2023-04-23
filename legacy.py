@@ -117,12 +117,12 @@ start = strMath(args.start, var)
 memLim = strToMemory(args.memory_limit)
 
 if args.gpu != None:
-	from libs.render_cuda import renderPath
+	from libs.legacy.render_cuda import renderPath
 	if args.gpu == '*':
 		gpu = None
 	else:
 		gpu = int(args.gpu)
 	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, memLim, start, gpu)
 else:
-	from libs.render import renderPath
+	from libs.legacy.render import renderPath
 	renderPath(path, dims, duration, timescale, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, memLim, start)
