@@ -78,7 +78,48 @@ __global__ void cudaIncrement(float* mags, int* freqs, float* pathCache, size_t 
 	}
 }
 
+#define CACHE_BLOCK_SIZE 64
 #define INCREMENT_BLOCK_SIZE 1024
+#define CUMSUM_BLOCK_SIZE 1024
+__global__ void cudaCumsum2f(float2* in, float2* out, int len) {
+	__shared__ float2 sBlock[CUMSUM_BLOCK_SIZE];
+
+	int id = threadIdx.x + blockIdx.x * blockDim.x;
+	int tx = threadIdx.x;
+
+	if (id < len)
+		sBlock[tx] = in[id];
+	else
+		sBlock[tx] = { 0.0f, 0.0f };
+	__syncthreads();
+
+	for (int stride = 1; stride <= CUMSUM_BLOCK_SIZE; stride *= 2) {
+		int index = (tx + 1) * stride * 2 - 1;
+		if (index < CUMSUM_BLOCK_SIZE)
+		{
+			sBlock[index].x += sBlock[index - stride].x;
+			sBlock[index].y += sBlock[index - stride].y;
+		}
+		__syncthreads();
+	}
+
+	for (int stride = CUMSUM_BLOCK_SIZE / 2; stride > 0; stride /= 2) {
+		int index = (tx + 1) * stride * 2 - 1;
+		if (index + stride < CUMSUM_BLOCK_SIZE)
+		{
+			sBlock[index + stride].x += sBlock[index].x;
+			sBlock[index + stride].y += sBlock[index].y;
+		}
+		__syncthreads();
+	}
+
+	if (id < len)
+		out[id] = sBlock[tx];
+}
+void cumsum2f(float* in, float* out, size_t len) {
+	cudaCumsum2f << <(len + CUMSUM_BLOCK_SIZE - 1) / CUMSUM_BLOCK_SIZE, CUMSUM_BLOCK_SIZE >> > ((float2*)in, (float2*)out, len);
+}
+
 CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
 	: vectorLine(vectorLine), pathLine(pathLine), dt(dt), cacheSize(cacheSize), size(size), time(0), head(0)
 {
@@ -90,12 +131,22 @@ CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std
 	cudaGraphicsGLRegisterBuffer(&vectorPtr, vectorLine->getBuffer(), cudaGraphicsRegisterFlagsWriteDiscard);
 	cudaGraphicsGLRegisterBuffer(&pathPtr, pathLine->getBuffer(), cudaGraphicsRegisterFlagsNone);
 
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	float* ptr;
+	size_t mappedSize = (size + 1) * 2 * sizeof(float);
+	cudaGraphicsMapResources(1, &vectorPtr);
+	cudaGraphicsResourceGetMappedPointer((void**)&ptr, &mappedSize, vectorPtr);
+	cumsum2f(deviceMags, ptr + 2, size);
+	cudaGraphicsUnmapResources(1, &vectorPtr);
+
 	float* deviceStart;
 	cudaMalloc(&deviceStart, sizeof(float) * 2ull);
 	sumVector<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
 			(deviceMags, deviceStart, size);
 	float hostStart[3] = { 0 };
 	cudaMemcpy(hostStart, deviceStart, sizeof(float) * 2, cudaMemcpyDeviceToHost);
+	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
 	if (pathLine->isTimestamped())
 		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &hostStart);
 	else
@@ -122,10 +173,6 @@ float CudaFourierSeries::increment(size_t count, float time)
 	return count * dt;
 }
 
-__global__ void fillVector(float* mags, size_t len, float* vector)
-{
-
-}
 __global__ void fillPath(float* pathCache, size_t cacheLen, float* path, size_t pathLen, size_t head)
 {
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -171,16 +218,16 @@ __global__ void fillPathTimestamped(float* pathCache, size_t cacheLen, float* pa
 		path[index + 2] = time + id * dt;
 	}
 }
-#define CACHE_BLOCK_SIZE 64
+
 void CudaFourierSeries::updateBuffers()
 {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	float* ptr;
 	size_t mappedSize = (size + 1) * 2 * sizeof(float);
-	/*cudaGraphicsMapResources(1, &vectorPtr);
+	cudaGraphicsMapResources(1, &vectorPtr);
 	cudaGraphicsResourceGetMappedPointer((void**)&ptr, &mappedSize, vectorPtr);
+	cumsum2f(deviceMags, ptr + 2, size);
 	cudaGraphicsUnmapResources(1, &vectorPtr);
-	*/
 
 	mappedSize = sizeof(float) * lineWidth * pathLine->getCount();
 	cudaGraphicsMapResources(1, &pathPtr);
