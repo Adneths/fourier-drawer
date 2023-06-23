@@ -81,6 +81,43 @@ __global__ void cudaIncrement(float* mags, int* freqs, float* pathCache, size_t 
 #define CACHE_BLOCK_SIZE 64
 #define INCREMENT_BLOCK_SIZE 1024
 #define CUMSUM_BLOCK_SIZE 1024
+__global__ void cudaCumsum2f(float2* in, float2* out, float2* blocks, int len) {
+	__shared__ float2 sBlock[CUMSUM_BLOCK_SIZE];
+
+	int id = threadIdx.x + blockIdx.x * blockDim.x;
+	int tx = threadIdx.x;
+
+	if (id < len)
+		sBlock[tx] = in[id];
+	else
+		sBlock[tx] = { 0.0f, 0.0f };
+	__syncthreads();
+
+	for (int stride = 1; stride <= CUMSUM_BLOCK_SIZE; stride *= 2) {
+		int index = (tx + 1) * stride * 2 - 1;
+		if (index < CUMSUM_BLOCK_SIZE)
+		{
+			sBlock[index].x += sBlock[index - stride].x;
+			sBlock[index].y += sBlock[index - stride].y;
+		}
+		__syncthreads();
+	}
+
+	for (int stride = CUMSUM_BLOCK_SIZE / 2; stride > 0; stride /= 2) {
+		int index = (tx + 1) * stride * 2 - 1;
+		if (index + stride < CUMSUM_BLOCK_SIZE)
+		{
+			sBlock[index + stride].x += sBlock[index].x;
+			sBlock[index + stride].y += sBlock[index].y;
+		}
+		__syncthreads();
+	}
+
+	if (id < len)
+		out[id] = sBlock[tx];
+	if (tx == 0)
+		blocks[blockIdx.x] = sBlock[CUMSUM_BLOCK_SIZE - 1];
+}
 __global__ void cudaCumsum2f(float2* in, float2* out, int len) {
 	__shared__ float2 sBlock[CUMSUM_BLOCK_SIZE];
 
@@ -116,8 +153,35 @@ __global__ void cudaCumsum2f(float2* in, float2* out, int len) {
 	if (id < len)
 		out[id] = sBlock[tx];
 }
+__global__ void cudaFillSum2f(float2* inout, float2* blocks, size_t len) {
+	__shared__ float2 sum;
+	int id = threadIdx.x + blockIdx.x * blockDim.x;
+	if (threadIdx.x == 0)
+		if (blockIdx.x > 0)
+			sum = blocks[blockIdx.x-1];
+		else
+			sum = { 0.0f, 0.0f };
+	__syncthreads();
+
+	if (id < len)
+	{
+		inout[id].x += sum.x;
+		inout[id].y += sum.y;
+	}
+}
 void cumsum2f(float* in, float* out, size_t len) {
-	cudaCumsum2f << <(len + CUMSUM_BLOCK_SIZE - 1) / CUMSUM_BLOCK_SIZE, CUMSUM_BLOCK_SIZE >> > ((float2*)in, (float2*)out, len);
+	if (len > CUMSUM_BLOCK_SIZE)
+	{
+		size_t blockDim = (len + CUMSUM_BLOCK_SIZE - 1) / CUMSUM_BLOCK_SIZE;
+		float* blocks;
+		cudaMalloc(&blocks, sizeof(float) * blockDim * 2);
+		cudaCumsum2f<<<blockDim, CUMSUM_BLOCK_SIZE>>>((float2*)in, (float2*)out, (float2*)blocks, len);
+		cumsum2f(blocks, blocks, blockDim);
+		cudaFillSum2f<<<blockDim, CUMSUM_BLOCK_SIZE>>>((float2*)out, (float2*)blocks, len);
+		cudaFree(blocks);
+	}
+	else
+		cudaCumsum2f<<<1, CUMSUM_BLOCK_SIZE>>>((float2*)in, (float2*)out, len);
 }
 
 CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
@@ -133,24 +197,25 @@ CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std
 
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	float* ptr;
-	size_t mappedSize = (size + 1) * 2 * sizeof(float);
-	cudaGraphicsMapResources(1, &vectorPtr);
-	cudaGraphicsResourceGetMappedPointer((void**)&ptr, &mappedSize, vectorPtr);
-	cumsum2f(deviceMags, ptr + 2, size);
-	cudaGraphicsUnmapResources(1, &vectorPtr);
-
 	float* deviceStart;
 	cudaMalloc(&deviceStart, sizeof(float) * 2ull);
 	sumVector<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
 			(deviceMags, deviceStart, size);
 	float hostStart[3] = { 0 };
 	cudaMemcpy(hostStart, deviceStart, sizeof(float) * 2, cudaMemcpyDeviceToHost);
+	cudaFree(deviceStart);
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
 	if (pathLine->isTimestamped())
 		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &hostStart);
 	else
 		glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &hostStart);
+
+	float* ptr;
+	size_t mappedSize = (size + 1) * 2 * sizeof(float);
+	cudaGraphicsMapResources(1, &vectorPtr);
+	cudaGraphicsResourceGetMappedPointer((void**)&ptr, &mappedSize, vectorPtr);
+	cumsum2f(deviceMags, ptr + 2, size);
+	cudaGraphicsUnmapResources(1, &vectorPtr);
 
 	lineWidth = (pathLine->isTimestamped() ? 6ull : 4ull);
 	pathBufferSize = pathLine->getCount() * lineWidth;
