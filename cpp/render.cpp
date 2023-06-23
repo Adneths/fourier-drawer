@@ -5,6 +5,7 @@
 #include <string.h>
 #include <signal.h>
 #include <cstdlib>
+#include "constant.h"
 
 #include "core.h"
 #include "Shader.h"
@@ -12,15 +13,18 @@
 #include <complex>
 #include <string>
 
+#include "NumCpp.hpp"
 #include "VideoEncoder.h"
 #include "FourierSeries.h"
-#include "NpFourierSeries.h"
 #include "MultiBuffer.h"
 
-#include "NumCpp.hpp"
+#if COMPILE_CUDA
+#include "CudaFourierSeries.cuh"
+#else
+#include "NpFourierSeries.h"
+#endif
 
-#include "windows.h"
-#include "constant.h"
+
 
 //https://stackoverflow.com/a/26221725
 template<typename ... Args>
@@ -74,11 +78,10 @@ void GLAPIENTRY errorCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 
 
 #define TIMEOUT 30000000000ul
-typedef FourierSeries*(CALLBACK* DLLFUNC_INSTANTIATE)(LineStrip*, Lines*, std::complex<float>*, int*, size_t, float, size_t);
 extern "C" {
 	DLL_API int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start,
 		float trailLength, bool trailFade, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output,
-		bool cuda, const char* cuda_path, bool show, bool debug)
+		bool show, bool debug)
 	{
 		std::cout << "Initializing Scene" << std::endl;
 		signal(SIGINT, keyboard_interrupt);
@@ -140,40 +143,11 @@ extern "C" {
 		mags = mags[inds];
 		freqs = freqs[inds];
 		
-		FourierSeries* fourier = nullptr;
-		HINSTANCE hDLL = NULL;
-		if (cuda)
-		{
-			std::cout << "Loading " << cuda_path << std::endl;
-			hDLL = LoadLibrary(cuda_path);
-			if (hDLL != NULL)
-			{
-				DLLFUNC_INSTANTIATE instantiate = (DLLFUNC_INSTANTIATE)GetProcAddress(hDLL, "instantiate");
-				if (instantiate != NULL)
-				{
-					fourier = instantiate(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
-					if (fourier == nullptr)
-					{
-						std::cerr << "Failed to instantiate CudaFourierSeries" << std::endl;
-						alive = false;
-					}
-				}
-				else
-				{
-					std::cerr << "Failed to find instantiation function for CudaFourierSeries" << std::endl;
-					alive = false;
-				}
-			}
-			else
-			{
-				std::cerr << "Failed to load foruier_cuda.dll" << std::endl;
-				alive = false;
-			}
-		}
-		else
-		{
-			fourier = new NpForuierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
-		}
+#if COMPILE_CUDA
+		FourierSeries* fourier = new CudaFourierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
+#else
+		FourierSeries* fourier = new NpForuierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
+#endif
 		MultiBuffer* multiBuffer = new MultiBuffer(width, height, 2);
 
 		glClearColor(0, 0, 0, 1);
@@ -246,8 +220,6 @@ extern "C" {
 		delete encoder;
 		if(fourier != nullptr)
 			delete fourier;
-		if(hDLL != NULL)
-			FreeLibrary(hDLL);
 		delete multiBuffer;
 
 		glDeleteProgram(vectorShader);

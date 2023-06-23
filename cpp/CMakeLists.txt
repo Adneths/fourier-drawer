@@ -5,22 +5,15 @@ enable_language(CUDA)
 find_package(CUDAToolkit)
 
 
-set (LIB_FILES
-    src/Lines.cpp
-    src/LineStrip.cpp
-    
-    include/Lines.h
-    include/LineStrip.h
-)
-
 set (SOURCES
     render.cpp
     src/Shader.cpp
     src/VideoEncoder.cpp
-    
-    src/NpFourierSeries.cpp
 
     src/MultiBuffer.cpp
+    
+    src/Lines.cpp
+    src/LineStrip.cpp
 )
 
 set (HEADERS
@@ -31,14 +24,11 @@ set (HEADERS
     include/VideoEncoder.h
 
     include/FourierSeries.h
-    include/NpFourierSeries.h
 
     include/MultiBuffer.h
-)
 
-set (CUDA_FILES    
-    include/CudaFourierSeries.cuh
-    src/CudaFourierSeries.cu
+    include/Lines.h
+    include/LineStrip.h
 )
 
 find_package(OpenGL REQUIRED)
@@ -53,17 +43,17 @@ link_directories(
     $ENV{FFMPEG_LIB_PATH}
 )
 
-add_library(lines ${LIB_FILES})
-target_link_libraries(lines PUBLIC ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib)
+add_library(render SHARED ${SOURCES} ${HEADERS} include/NpFourierSeries.h src/NpFourierSeries.cpp)
+target_link_libraries(render PUBLIC ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp avcodec.lib avutil.lib avformat.lib swscale.lib)
+target_compile_features(render PRIVATE cxx_std_17)
 
-add_library(render SHARED ${SOURCES} ${HEADERS})
-target_link_libraries(render PUBLIC ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp avcodec.lib avutil.lib avformat.lib swscale.lib lines)
-
-add_library(fourier_cuda SHARED ${HEADERS} ${CUDA_FILES})
+add_library(cuda_render SHARED ${SOURCES} ${HEADERS} include/CudaFourierSeries.cuh src/CudaFourierSeries.cu)
 #set_target_properties(fourier_cuda PROPERTIES CUDA_ARCHITECTURES "50;61;75")
 #set_target_properties(fourier_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 #target_link_libraries(fourier_cuda PUBLIC ${OPENGL_LIBRARIES} CUDA::cudart)
-target_link_libraries(fourier_cuda PUBLIC lines ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib)
+target_link_libraries(cuda_render PUBLIC CUDA::cudart ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp avcodec.lib avutil.lib avformat.lib swscale.lib)
+target_compile_features(cuda_render PRIVATE cxx_std_17)
+target_compile_definitions(cuda_render PRIVATE COMPILE_CUDA)
 
 add_custom_command(TARGET render POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -73,14 +63,14 @@ add_custom_command(TARGET render POST_BUILD
 	"${PROJECT_SOURCE_DIR}/shaders"
 	"../../../../libs/shaders"
 )
-add_custom_command(TARGET fourier_cuda POST_BUILD
+add_custom_command(TARGET cuda_render POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_BINARY_DIR}/fourier_cuda.dll"
-    "../../../../libs/fourier_cuda.dll"
+    "${CMAKE_BINARY_DIR}/cuda_render.dll"
+    "../../../../libs/cuda_render.dll"
+	COMMAND ${CMAKE_COMMAND} -E copy_directory
+	"${PROJECT_SOURCE_DIR}/shaders"
+	"../../../../libs/shaders"
 )
-
-target_compile_features(render PRIVATE cxx_std_17)
-target_compile_features(fourier_cuda PRIVATE cxx_std_17)
 
 add_executable(debug debug.cpp)
 add_custom_command(TARGET debug POST_BUILD
