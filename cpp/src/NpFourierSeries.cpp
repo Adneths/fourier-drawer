@@ -2,18 +2,15 @@
 #include <algorithm>
 
 
-NpForuierSeries::NpForuierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* series, size_t size, float dt, size_t cacheSize)
+NpForuierSeries::NpForuierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
 	: vectorLine(vectorLine), pathLine(pathLine), dt(dt), cacheSize(cacheSize), head(0)
 {
-	nc::NdArray<std::complex<float>> mags((std::complex<float>*)series, size);
-	nc::NdArray<int> freqs = nc::append(nc::arange(0, (int)(size / 2)), nc::arange(-(int)((size + 1) / 2), 0));
-	nc::NdArray<nc::uint32> inds = nc::argsort(-nc::abs(mags));
-	vector = nc::append({ std::complex<float>(0,0) }, mags[inds]);
-	freqs = freqs[inds];
+	vector = nc::append({ std::complex<float>(0,0) }, nc::asarray(mags, size));
+	nc::NdArray<int> freqsArr = nc::asarray(freqs, size);
 	step = nc::append({ std::complex<float>(0,0) },
-			nc::exp(std::complex<float>(0, 1) * dt * freqs.astype<std::complex<float>>()));
+			nc::exp(std::complex<float>(0, 1) * dt * freqsArr.astype<std::complex<float>>()));
 
-	pathCache = (float*)malloc(sizeof(float) * (cacheFloatSize=(pathLine->isTimestamped() ? 3ull : 2ull) * cacheSize * 2ull));
+	pathCache = (float*)malloc(sizeof(float) * (cacheFloatSize = (pathLine->isTimestamped() ? 3ull : 2ull) * cacheSize * 2ull));
 
 	std::complex<float> sum = nc::sum(vector)[0];
 	last[0] = sum.real(); last[1] = sum.imag(); last[2] = 0;
@@ -45,12 +42,12 @@ float NpForuierSeries::increment(size_t count, float time)
 			std::complex<float> sum = nc::sum(vector)[0];
 			pathCache[i * 6 + 0 + 3] = sum.real();
 			pathCache[i * 6 + 1 + 3] = sum.imag();
-			pathCache[i * 6 + 2 + 3] = time;// +dt * i;
+			pathCache[i * 6 + 2 + 3] = time + dt * i;
 			if (i != count - 1)
 			{
 				pathCache[i * 6 + 3 + 3] = sum.real();
 				pathCache[i * 6 + 4 + 3] = sum.imag();
-				pathCache[i * 6 + 5 + 3] = time;// +dt * i;
+				pathCache[i * 6 + 5 + 3] = time + dt * i;
 			}
 		}
 	}
@@ -80,7 +77,6 @@ void NpForuierSeries::updateBuffers()
 {
 	glBindBuffer(GL_ARRAY_BUFFER, vectorLine->getBuffer());
 	glBufferSubData(GL_ARRAY_BUFFER, 0, (vectorLine->getCount() + 1ull) * 2ull * sizeof(float), (float*)nc::cumsum(vector).dataRelease());
-	vectorLine->finish();
 
 	for (int i = 0; i < (pathLine->isTimestamped() ? 3 : 2); i++)
 		last[i] = pathCache[i + (cacheSize-1) * lineWidth + (pathLine->isTimestamped() ? 3ull : 2ull)];
@@ -91,5 +87,6 @@ void NpForuierSeries::updateBuffers()
 	if (len < cacheFloatSize)
 		glBufferSubData(GL_ARRAY_BUFFER, 0, (cacheFloatSize - len) * sizeof(float), pathCache + len);
 	head = (head + cacheFloatSize) % (pathBufferSize);
-	pathLine->finish();
 }
+
+void NpForuierSeries::readyBuffers() {}

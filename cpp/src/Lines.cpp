@@ -75,10 +75,6 @@ GLuint Lines::getBuffer()
 {
 	return VBO;
 }
-void Lines::finish()
-{
-
-}
 uint32_t Lines::getCount()
 {
 	return count;

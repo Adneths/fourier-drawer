@@ -49,10 +49,6 @@ GLuint LineStrip::getBuffer()
 {
 	return VBO;
 }
-void LineStrip::finish()
-{
-
-}
 uint32_t LineStrip::getCount()
 {
 	return count;

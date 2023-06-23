@@ -117,6 +117,10 @@ fpf = int(strMath(args.frames_per_frame, var))
 start = strMath(args.start, var)
 memLim = strToMemory(args.memory_limit)
 
+if fpf > 1024:
+	print('Error: fpf can not exceed 1024 (is {})'.format(fpf))
+	exit()
+
 print('Loading Libraries')
 from libs.cpp_render import renderPath
-renderPath(path, dims, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.show, args.debug)
+renderPath(path, dims, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.gpu!=None, args.show, args.debug)

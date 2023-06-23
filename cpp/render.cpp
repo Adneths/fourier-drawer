@@ -19,7 +19,8 @@
 
 #include "NumCpp.hpp"
 
-#define PI 3.141592
+#include "windows.h"
+#include "constant.h"
 
 //https://stackoverflow.com/a/26221725
 template<typename ... Args>
@@ -69,9 +70,15 @@ void GLAPIENTRY errorCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 		type, severity, message);
 }
 
+
+#define TIMEOUT 30000000000ul
+typedef FourierSeries*(CALLBACK* DLLFUNC_INSTANTIATE)(LineStrip*, Lines*, std::complex<float>*, int*, size_t, float, size_t);
 extern "C" {
-	__declspec(dllexport) int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start, float trailLength, bool trailFade, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output, bool show, bool debug)
+	DLL_API int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start,
+		float trailLength, bool trailFade, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output,
+		bool cuda, bool show, bool debug)
 	{
+		std::cout << "Initializing Scene" << std::endl;
 		signal(SIGINT, keyboard_interrupt);
 
 		if (!glfwInit()) {
@@ -119,16 +126,51 @@ extern "C" {
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
-		nc::NdArray<std::complex<float>> vecs((std::complex<float>*)data, vectorSize);
-		vecs = nc::append(nc::zeros<std::complex<float>>(1,1), vecs);
-
 		LineStrip* vector = new LineStrip(glm::vec2(0,0), vectorSize, vectorColor);
 		Lines* trail = new Lines(glm::vec2(0,0), trailSize, trailColor, trailFade);
 		
 		VideoEncoder* encoder = new VideoEncoder(output, width, height, fps);
 		encoder->initialize();
 
-		FourierSeries* fourier = new NpForuierSeries(vector, trail, (std::complex<float>*)data, vectorSize, dt, fpf);
+		nc::NdArray<std::complex<float>> mags((std::complex<float>*)data, vectorSize);
+		nc::NdArray<int> freqs = nc::append(nc::arange(0, (int)(vectorSize / 2)), nc::arange(-(int)((vectorSize + 1) / 2), 0));
+		nc::NdArray<nc::uint32> inds = nc::argsort(-nc::abs(mags));
+		mags = mags[inds];
+		freqs = freqs[inds];
+		
+		FourierSeries* fourier = nullptr;
+		HINSTANCE hDLL = NULL;
+		if (cuda)
+		{
+			hDLL = LoadLibrary(".\\libs\\fourier_cuda.dll");
+			if (hDLL != NULL)
+			{
+				DLLFUNC_INSTANTIATE instantiate = (DLLFUNC_INSTANTIATE)GetProcAddress(hDLL, "instantiate");
+				if (instantiate != NULL)
+				{
+					fourier = instantiate(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
+					if (fourier == nullptr)
+					{
+						std::cerr << "Failed to instantiate CudaFourierSeries" << std::endl;
+						alive = false;
+					}
+				}
+				else
+				{
+					std::cerr << "Failed to find instantiation function for CudaFourierSeries" << std::endl;
+					alive = false;
+				}
+			}
+			else
+			{
+				std::cerr << "Failed to load foruier_cuda.dll" << std::endl;
+				alive = false;
+			}
+		}
+		else
+		{
+			fourier = new NpForuierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
+		}
 		MultiBuffer* multiBuffer = new MultiBuffer(width, height, 2);
 
 		glClearColor(0, 0, 0, 1);
@@ -136,25 +178,37 @@ extern "C" {
 		float end = start + duration;
 		uint8_t* frameraw = (uint8_t*)malloc(sizeof(uint8_t) * width * height * 3);
 
-		std::string ETR = "XX:XX";
+		std::string ETR = "XX:XX remaining";
 		int ind = 0;
 		double sTime = glfwGetTime();
 		double pTime = glfwGetTime();
 		double d64[64] = {0};
 		int len = 0;
+		GLsync draw, copy, step;
 		while (t < end && alive) {
 			//glfwPollEvents();
 			//glfwSwapBuffers(window);
 
+			fourier->readyBuffers();
 			double time = glfwGetTime();
 			glClear(GL_COLOR_BUFFER_BIT);
 			vector->draw(vectorShader, viewMtx);
 			trail->draw(pathShader, viewMtx, t);
+			draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
 			multiBuffer->nextVBO();
+			copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
 
 			t += fourier->increment(fpf, t);
+			step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+			glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+			glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 			fourier->updateBuffers();
 
+
+			glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 			uint8_t* ptr = multiBuffer->nextPBO();
 			if (ptr != nullptr)
 			{
@@ -175,7 +229,7 @@ extern "C" {
 				ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
 			}
 
-			len = printProgressBar((t - start) / duration, 40, len, "Rendering", ETR);
+			len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
 		}
 		if (alive)
 			std::cout << std::endl << "Total Time: " << formatTime(glfwGetTime() - sTime) << std::endl;
@@ -187,7 +241,10 @@ extern "C" {
 		delete vector;
 		delete trail;
 		delete encoder;
-		delete fourier;
+		if(fourier != nullptr)
+			delete fourier;
+		if(hDLL != NULL)
+			FreeLibrary(hDLL);
 		delete multiBuffer;
 
 		glDeleteProgram(vectorShader);

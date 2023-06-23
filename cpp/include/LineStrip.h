@@ -24,7 +24,6 @@ public:
 	virtual ~LineStrip();
 
 	virtual GLuint getBuffer();
-	virtual void finish();
 	/**
 	 * @return the number of line segments
 	 */
