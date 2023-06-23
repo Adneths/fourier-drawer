@@ -1,6 +1,6 @@
 #include "CudaFourierSeries.cuh"
 
-
+#include "core.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
@@ -149,6 +149,7 @@ void CudaFourierSeries::updateBuffers()
 	*/
 
 	float test[8] = {0, 0, 100, 100, 100, 200, -100, 300};
+	auto t = glfwGetCurrentContext();
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
 	glBufferSubData(GL_ARRAY_BUFFER, 0, 8 * sizeof(float), &test);
 

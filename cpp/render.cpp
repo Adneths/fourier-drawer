@@ -58,6 +58,8 @@ int printProgressBar(float part, int barLength = 40, int minLength = 0, std::str
 {
 	std::string bar = std::string((int)(barLength * part), '*');
 	bar += std::string(barLength - bar.length(), ' ');
+	if (part > 1)
+		part = 1;
 	int ret = sprintf(buf, "%s |%s| %.1f%% %s", prefix.c_str(), bar.c_str(), part * 100, suffix.c_str());
 	printf("%-*s\r", minLength, buf);
 	return ret;
@@ -76,7 +78,7 @@ typedef FourierSeries*(CALLBACK* DLLFUNC_INSTANTIATE)(LineStrip*, Lines*, std::c
 extern "C" {
 	DLL_API int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start,
 		float trailLength, bool trailFade, glm::vec3 trailColor, glm::vec3 vectorColor, int fps, int fpf, const char* output,
-		bool cuda, bool show, bool debug)
+		bool cuda, const char* cuda_path, bool show, bool debug)
 	{
 		std::cout << "Initializing Scene" << std::endl;
 		signal(SIGINT, keyboard_interrupt);
@@ -142,7 +144,8 @@ extern "C" {
 		HINSTANCE hDLL = NULL;
 		if (cuda)
 		{
-			hDLL = LoadLibrary(".\\libs\\fourier_cuda.dll");
+			std::cout << "Loading " << cuda_path << std::endl;
+			hDLL = LoadLibrary(cuda_path);
 			if (hDLL != NULL)
 			{
 				DLLFUNC_INSTANTIATE instantiate = (DLLFUNC_INSTANTIATE)GetProcAddress(hDLL, "instantiate");
