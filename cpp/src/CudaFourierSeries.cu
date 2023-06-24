@@ -243,20 +243,22 @@ __global__ void fillPath(float* pathCache, size_t cacheLen, float* path, size_t 
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id * 2 >= cacheLen)
 		return;
-	
+
+	register float2 v = { pathCache[id * 2] , pathCache[id * 2 + 1] };
+
 	int index = (head + id * 4 + 2) % pathLen;
-	path[index] = pathCache[id * 2];
-	path[index + 1] = pathCache[id * 2 + 1];
+	path[index] = v.x;
+	path[index + 1] = v.y;
 
 	index = (index + 2) % pathLen;
-	path[index] = pathCache[id * 2];
-	path[index + 1] = pathCache[id * 2 + 1];
+	path[index] = v.x;
+	path[index + 1] = v.y;
 	
 	if (id * 2 == cacheLen - 2)
 	{
 		index = (index + 2) % pathLen;
-		path[index] = pathCache[id * 2];
-		path[index + 1] = pathCache[id * 2 + 1];
+		path[index] = v.x;
+		path[index + 1] = v.y;
 	}
 }
 __global__ void fillPathTimestamped(float* pathCache, size_t cacheLen, float* path, size_t pathLen, float time, float dt, size_t head)
@@ -265,22 +267,24 @@ __global__ void fillPathTimestamped(float* pathCache, size_t cacheLen, float* pa
 	if (id * 2 >= cacheLen)
 		return;
 
+	register float3 v = { pathCache[id * 2] , pathCache[id * 2 + 1],  time + id * dt };
+
 	int index = (head + id * 6 + 3) % pathLen;
-	path[index] = pathCache[id * 2];
-	path[index + 1] = pathCache[id * 2 + 1];
-	path[index + 2] = time + id * dt;
+	path[index] = v.x;
+	path[index + 1] = v.y;
+	path[index + 2] = v.z;
 
 	index = (index + 3) % pathLen;
-	path[index] = pathCache[id * 2];
-	path[index + 1] = pathCache[id * 2 + 1];
-	path[index + 2] = time + id * dt;
+	path[index] = v.x;
+	path[index + 1] = v.y;
+	path[index + 2] = v.z;
 	
 	if (id * 2 == cacheLen - 2)
 	{
 		index = (index + 3) % pathLen;
-		path[index] = pathCache[id * 2];
-		path[index + 1] = pathCache[id * 2 + 1];
-		path[index + 2] = time + id * dt;
+		path[index] = v.x;
+		path[index + 1] = v.y;
+		path[index + 2] = v.z;
 	}
 }
 
@@ -299,10 +303,10 @@ void CudaFourierSeries::updateBuffers()
 	cudaGraphicsResourceGetMappedPointer((void**)&ptr, &mappedSize, pathPtr);
 	if (pathLine->isTimestamped())
 		fillPathTimestamped<<<(cacheSize + CACHE_BLOCK_SIZE - 1) / CACHE_BLOCK_SIZE, CACHE_BLOCK_SIZE>>>
-		(devicePathCache, cacheSize * 2, ptr, mappedSize, time - dt * cacheSize, dt, head);
+		(devicePathCache, cacheSize * 2, ptr, lineWidth * pathLine->getCount(), time - dt * cacheSize, dt, head);
 	else
 		fillPath<<<(cacheSize + CACHE_BLOCK_SIZE - 1) / CACHE_BLOCK_SIZE, CACHE_BLOCK_SIZE >>>
-		(devicePathCache, cacheSize * 2, ptr, mappedSize, head);
+		(devicePathCache, cacheSize * 2, ptr, lineWidth * pathLine->getCount(), head);
 	cudaGraphicsUnmapResources(1, &pathPtr);
 
 	head = (head + lineWidth * cacheSize) % (pathBufferSize);
