@@ -78,6 +78,3 @@ add_custom_command(TARGET debug POST_BUILD
 	"${PROJECT_SOURCE_DIR}/shaders"
 	"${CMAKE_BINARY_DIR}/libs/shaders"
 )
-
-add_executable(test_cuda test.cu)
-target_link_libraries(test_cuda PUBLIC CUDA::cudart)

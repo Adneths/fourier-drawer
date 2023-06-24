@@ -154,6 +154,12 @@ extern "C" {
 		float t = start;
 		float end = start + duration;
 		uint8_t* frameraw = (uint8_t*)malloc(sizeof(uint8_t) * width * height * 3);
+		if (t > 0)
+		{
+			fourier->init(t);
+			fourier->updateBuffers();
+		}
+		fourier->resetTrail();
 
 		std::string ETR = "XX:XX remaining";
 		int ind = 0;

@@ -184,8 +184,29 @@ void cumsum2f(float* in, float* out, size_t len) {
 		cudaCumsum2f<<<1, CUMSUM_BLOCK_SIZE>>>((float2*)in, (float2*)out, len);
 }
 
+void CudaFourierSeries::resetTrail()
+{
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	float* deviceStart;
+	cudaMalloc(&deviceStart, sizeof(float) * 2ull);
+	cudaMemset(deviceStart, 0, sizeof(float) * 2ull);
+	sumVector<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
+		(deviceMags, deviceStart, size);
+	float hostStart[3] = { 0 };
+	cudaMemcpy(hostStart, deviceStart, sizeof(float) * 2, cudaMemcpyDeviceToHost);
+	cudaFree(deviceStart);
+
+	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
+	if (pathLine->isTimestamped())
+		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &hostStart);
+	else
+		glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &hostStart);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
 CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
-	: vectorLine(vectorLine), pathLine(pathLine), dt(dt), cacheSize(cacheSize), size(size), time(0), head(0)
+	: vectorLine(vectorLine), pathLine(pathLine), cacheSize(cacheSize), size(size), dt(dt), time(0), head(0)
 {
 	cudaMalloc(&deviceMags, sizeof(float) * size * 2ull);
 	cudaMemcpy(deviceMags, (float*)mags, sizeof(float) * size * 2ull, cudaMemcpyHostToDevice);
@@ -194,21 +215,6 @@ CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std
 	cudaMalloc(&devicePathCache, sizeof(float) * cacheSize * 2ull);
 	cudaGraphicsGLRegisterBuffer(&vectorPtr, vectorLine->getBuffer(), cudaGraphicsRegisterFlagsWriteDiscard);
 	cudaGraphicsGLRegisterBuffer(&pathPtr, pathLine->getBuffer(), cudaGraphicsRegisterFlagsNone);
-
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	float* deviceStart;
-	cudaMalloc(&deviceStart, sizeof(float) * 2ull);
-	sumVector<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
-			(deviceMags, deviceStart, size);
-	float hostStart[3] = { 0 };
-	cudaMemcpy(hostStart, deviceStart, sizeof(float) * 2, cudaMemcpyDeviceToHost);
-	cudaFree(deviceStart);
-	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
-	if (pathLine->isTimestamped())
-		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &hostStart);
-	else
-		glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &hostStart);
 
 	float* ptr;
 	size_t mappedSize = (size + 1) * 2 * sizeof(float);
@@ -229,12 +235,18 @@ CudaFourierSeries::~CudaFourierSeries()
 	cudaGraphicsUnregisterResource(pathPtr);
 }
 
+
+void CudaFourierSeries::init(float time) {
+	cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
+		(deviceMags, deviceFreqs, devicePathCache, size, time, 1);
+	this->time = time;
+}
 float CudaFourierSeries::increment(size_t count, float time)
 {
 	cudaMemset(devicePathCache, 0, sizeof(float) * cacheSize * 2ull);
 	cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
 			(deviceMags, deviceFreqs, devicePathCache, size, dt, count);
-	this->time += count * dt;
+	this->time = time;
 	return count * dt;
 }
 
@@ -303,7 +315,7 @@ void CudaFourierSeries::updateBuffers()
 	cudaGraphicsResourceGetMappedPointer((void**)&ptr, &mappedSize, pathPtr);
 	if (pathLine->isTimestamped())
 		fillPathTimestamped<<<(cacheSize + CACHE_BLOCK_SIZE - 1) / CACHE_BLOCK_SIZE, CACHE_BLOCK_SIZE>>>
-		(devicePathCache, cacheSize * 2, ptr, lineWidth * pathLine->getCount(), time - dt * cacheSize, dt, head);
+		(devicePathCache, cacheSize * 2, ptr, lineWidth * pathLine->getCount(), this->time, dt, head);
 	else
 		fillPath<<<(cacheSize + CACHE_BLOCK_SIZE - 1) / CACHE_BLOCK_SIZE, CACHE_BLOCK_SIZE >>>
 		(devicePathCache, cacheSize * 2, ptr, lineWidth * pathLine->getCount(), head);
@@ -315,9 +327,4 @@ void CudaFourierSeries::updateBuffers()
 void CudaFourierSeries::readyBuffers()
 {
 	cudaDeviceSynchronize();
-}
-
-DLL_API FourierSeries* __cdecl instantiate(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
-{
-	return new CudaFourierSeries(vectorLine, pathLine, mags, freqs, size, dt, cacheSize);
 }

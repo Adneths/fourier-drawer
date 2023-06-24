@@ -14,12 +14,15 @@ public:
 	float increment(size_t count, float time) override;
 	void updateBuffers() override;
 	void readyBuffers() override;
+	void resetTrail() override;
+	void init(float time) override;
 private:
 	size_t head;
 	float last[3];
 
-	float dt;
 	nc::NdArray<std::complex<float>> vector, step;
+	nc::NdArray<int> freqsArr;
+	float dt;
 	float* pathCache;
 	size_t cacheSize;
 	LineStrip* vectorLine;

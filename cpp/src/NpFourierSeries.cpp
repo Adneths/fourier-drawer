@@ -1,27 +1,29 @@
 #include "NpFourierSeries.h"
 #include <algorithm>
 
-
+void NpForuierSeries::resetTrail()
+{
+	std::complex<float> sum = nc::sum(vector)[0];
+	last[0] = sum.real(); last[1] = sum.imag(); last[2] = 0;
+	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
+	if (pathLine->isTimestamped())
+		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &last);
+	else
+		glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &last);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
 NpForuierSeries::NpForuierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
-	: vectorLine(vectorLine), pathLine(pathLine), dt(dt), cacheSize(cacheSize), head(0)
+	: vectorLine(vectorLine), pathLine(pathLine), cacheSize(cacheSize), dt(dt), head(0)
 {
 	vector = nc::append({ std::complex<float>(0,0) }, nc::asarray(mags, size));
-	nc::NdArray<int> freqsArr = nc::asarray(freqs, size);
+	freqsArr = nc::asarray(freqs, size);
 	step = nc::append({ std::complex<float>(0,0) },
 			nc::exp(std::complex<float>(0, 1) * dt * freqsArr.astype<std::complex<float>>()));
 
 	pathCache = (float*)malloc(sizeof(float) * (cacheFloatSize = (pathLine->isTimestamped() ? 3ull : 2ull) * cacheSize * 2ull));
 
-	std::complex<float> sum = nc::sum(vector)[0];
-	last[0] = sum.real(); last[1] = sum.imag(); last[2] = 0;
 	glBindBuffer(GL_ARRAY_BUFFER, vectorLine->getBuffer());
 	glBufferSubData(GL_ARRAY_BUFFER, 0, vectorLine->getCount() * 2ull * sizeof(float), (float*)nc::cumsum(vector).dataRelease());
-	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
-	if(pathLine->isTimestamped())
-		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &last);
-	else
-		glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &last);
-
 
 	lineWidth = (pathLine->isTimestamped() ? 6ull : 4ull);
 	pathBufferSize = pathLine->getCount() * lineWidth;
@@ -30,6 +32,10 @@ NpForuierSeries::~NpForuierSeries()
 {
 }
 
+void NpForuierSeries::init(float time) {
+	vector *= nc::append({ std::complex<float>(0,0) },
+		nc::exp(std::complex<float>(0, 1) * time * freqsArr.astype<std::complex<float>>()));
+}
 float NpForuierSeries::increment(size_t count, float time)
 {
 	if (pathLine->isTimestamped())

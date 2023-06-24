@@ -20,6 +20,8 @@ public:
 	float increment(size_t count, float time) override;
 	void updateBuffers() override;
 	void readyBuffers() override;
+	void resetTrail() override;
+	void init(float time) override;
 private:
 	size_t head;
 	size_t cacheSize, size;
