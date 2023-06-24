@@ -48,12 +48,12 @@ float NpForuierSeries::increment(size_t count, float time)
 			std::complex<float> sum = nc::sum(vector)[0];
 			pathCache[i * 6 + 0 + 3] = sum.real();
 			pathCache[i * 6 + 1 + 3] = sum.imag();
-			pathCache[i * 6 + 2 + 3] = time + dt * i;
+			pathCache[i * 6 + 2 + 3] = time + dt * (i + 1);
 			if (i != count - 1)
 			{
 				pathCache[i * 6 + 3 + 3] = sum.real();
 				pathCache[i * 6 + 4 + 3] = sum.imag();
-				pathCache[i * 6 + 5 + 3] = time + dt * i;
+				pathCache[i * 6 + 5 + 3] = time + dt * (i + 1);
 			}
 		}
 	}

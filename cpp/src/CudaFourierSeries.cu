@@ -279,7 +279,7 @@ __global__ void fillPathTimestamped(float* pathCache, size_t cacheLen, float* pa
 	if (id * 2 >= cacheLen)
 		return;
 
-	register float3 v = { pathCache[id * 2] , pathCache[id * 2 + 1],  time + id * dt };
+	register float3 v = { pathCache[id * 2] , pathCache[id * 2 + 1],  time + (id + 1) * dt};
 
 	int index = (head + id * 6 + 3) % pathLen;
 	path[index] = v.x;

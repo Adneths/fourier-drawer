@@ -16,6 +16,7 @@ LineStrip::LineStrip(glm::vec2 vertex, uint32_t count, glm::vec3 color)
 
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
+	glBindVertexArray(0);
 }
 LineStrip::LineStrip(float* vertices, uint32_t count, glm::vec3 color)
 {
@@ -31,6 +32,7 @@ LineStrip::LineStrip(float* vertices, uint32_t count, glm::vec3 color)
 
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
+	glBindVertexArray(0);
 }
 void LineStrip::draw(GLuint shader, glm::mat3 viewMtx, float time)
 {
@@ -39,6 +41,7 @@ void LineStrip::draw(GLuint shader, glm::mat3 viewMtx, float time)
 	glUniform3fv(glGetUniformLocation(shader, "DiffuseColor"), 1, (float*)&color);
 	glBindVertexArray(VAO);
 	glDrawArrays(GL_LINE_STRIP, 0, this->count+1);
+	glBindVertexArray(0);
 }
 LineStrip::~LineStrip()
 {

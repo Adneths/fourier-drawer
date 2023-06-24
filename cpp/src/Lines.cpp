@@ -18,9 +18,10 @@ Lines::Lines(glm::vec2 vertex, uint32_t count, glm::vec3 color, bool timestamped
 	glEnableVertexAttribArray(0);
 	if (timestamped)
 	{
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3ull * sizeof(float), (void*)(2 * sizeof(float)));
+		glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 3ull * sizeof(float), (void*)(2 * sizeof(float)));
 		glEnableVertexAttribArray(1);
 	}
+	glBindVertexArray(0);
 }
 Lines::Lines(float* vertices, uint32_t count, glm::vec3 color, bool timestamped) : timestamped(timestamped)
 {
@@ -34,7 +35,7 @@ Lines::Lines(float* vertices, uint32_t count, glm::vec3 color, bool timestamped)
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	if(timestamped)
 	{
-		float* data = (float*)malloc(sizeof(float) * 6ull & count);
+		float* data = (float*)malloc(sizeof(float) * 6ull * count);
 		for (int i = 0; i < count; i++)
 		{
 			data[i * 3 + 0] = vertices[i * 2 + 0];
@@ -53,9 +54,10 @@ Lines::Lines(float* vertices, uint32_t count, glm::vec3 color, bool timestamped)
 	glEnableVertexAttribArray(0);
 	if (timestamped)
 	{
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3ull * sizeof(float), (void*)(2 * sizeof(float)));
+		glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 3ull * sizeof(float), (void*)(2 * sizeof(float)));
 		glEnableVertexAttribArray(1);
 	}
+	glBindVertexArray(0);
 }
 void Lines::draw(GLuint shader, glm::mat3 viewMtx, float time)
 {
@@ -65,6 +67,7 @@ void Lines::draw(GLuint shader, glm::mat3 viewMtx, float time)
 	glUniform1f(glGetUniformLocation(shader, "time"), time);
 	glBindVertexArray(VAO);
 	glDrawArrays(GL_LINES, 0, this->count * 2);
+	glBindVertexArray(0);
 }
 Lines::~Lines()
 {
