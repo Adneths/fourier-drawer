@@ -49,12 +49,15 @@ group.add_argument('-tf', '--trail-fade', action='store_true', help='whether the
 group.add_argument('-ntf', '--no-trail-fade', action='store_false', help='whether the tail should fade with time')
 parser.add_argument('-tc', '--trail-color', type=str, default='#ffff00', help='\'#xxxxxx\' color of the trail as a hexcode')
 parser.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\' color of the vectors as a hexcode')
+parser.add_argument('-tw', '--trail-width', type=float, default=1, help='width of the trail')
+parser.add_argument('-vw', '--vector-width', type=float, default=1, help='width of the vectors')
 parser.add_argument('-fps', type=int, default=60, help='fps of the output video')
 parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
 parser.add_argument('-g', '--gpu', type=str, default=None, help='Use Cuda to accelerate rendering process (use a number to specify a gpu or * for any)')
 
+parser.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offsets the center')
 parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
-parser.add_argument('--border', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
+parser.add_argument('--zoom', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--density', type=float, default=2, help='how densely packed are samples of a path')
 group.add_argument('--points', type=int, default=-1, help='how many point in an image or frame')
@@ -77,11 +80,17 @@ if args.dimension != None:
 else:
 	dims = None
 
+if args.center != None:
+	s = ''.join(args.center.split()).split('x')
+	center = (float(s[0]),float(s[1]))
+else:
+	center = (0,0)
+
 frames = 1
 if args.svg:
 	if dims == None:
 		dims = (800,800)
-	path = boundPath(centerPath(svgToPath(args.input, abs(args.density), args.points)), (dims[0]*args.border,dims[1]*args.border))
+	path = boundPath(centerPath(svgToPath(args.input, abs(args.density), args.points)), (dims[0]/min(dims),dims[1]/min(dims)))
 elif args.bitmap:
 	if dims == None:
 		size = Image.open(args.input).size
@@ -123,4 +132,4 @@ if fpf > 1024:
 
 print('Loading Libraries')
 from libs.cpp_render import renderPath
-renderPath(path, dims, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, tColor, vColor, args.fps, fpf, args.output, args.gpu!=None, args.show, args.debug)
+renderPath(path, center, dims, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, args.gpu!=None, args.show, args.debug)
