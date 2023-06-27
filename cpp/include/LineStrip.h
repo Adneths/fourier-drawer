@@ -5,7 +5,6 @@
 class LineStrip {
 protected:
 	GLuint VBO, VAO;
-	glm::vec3 color;
 	size_t count;
 public:
 	/**
@@ -13,14 +12,14 @@ public:
 	 * @param count the number of line segments
 	 * @param the color of the line strip
 	 */
-	LineStrip(glm::vec2 vertex, uint32_t count, glm::vec3 color);
+	LineStrip(glm::vec2 vertex, uint32_t count);
 	/**
 	 * @param vertices the vertex values to be copied
 	 * @param count the number of line segments
 	 * @param the color of the line strip
 	 */
-	LineStrip(float* vertices, uint32_t length, glm::vec3 color);
-	virtual void draw(GLuint shader, glm::mat3 viewMtx, float time = 0);
+	LineStrip(float* vertices, uint32_t length);
+	virtual void draw(GLuint shader, glm::mat3 viewMtx);
 	virtual ~LineStrip();
 
 	virtual GLuint getBuffer();

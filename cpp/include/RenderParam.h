@@ -1,4 +1,5 @@
 #include "core.h"
+#include <iostream>
 
 struct RenderParam {
 	float x, y, width, height, zoom;

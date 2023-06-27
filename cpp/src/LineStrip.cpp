@@ -1,10 +1,9 @@
 #include "LineStrip.h"
 
 
-LineStrip::LineStrip(glm::vec2 vertex, uint32_t count, glm::vec3 color)
+LineStrip::LineStrip(glm::vec2 vertex, uint32_t count)
 {
 	this->count = count;
-	this->color = color;
 
 	glGenBuffers(1, &VBO);
 	glGenVertexArrays(1, &VAO);
@@ -18,10 +17,9 @@ LineStrip::LineStrip(glm::vec2 vertex, uint32_t count, glm::vec3 color)
 	glEnableVertexAttribArray(0);
 	glBindVertexArray(0);
 }
-LineStrip::LineStrip(float* vertices, uint32_t count, glm::vec3 color)
+LineStrip::LineStrip(float* vertices, uint32_t count)
 {
 	this->count = count;
-	this->color = color;
 
 	glGenBuffers(1, &VBO);
 	glGenVertexArrays(1, &VAO);
@@ -34,11 +32,10 @@ LineStrip::LineStrip(float* vertices, uint32_t count, glm::vec3 color)
 	glEnableVertexAttribArray(0);
 	glBindVertexArray(0);
 }
-void LineStrip::draw(GLuint shader, glm::mat3 viewMtx, float time)
+void LineStrip::draw(GLuint shader, glm::mat3 viewMtx)
 {
 	glUseProgram(shader);
 	glUniformMatrix3fv(glGetUniformLocation(shader, "viewMtx"), 1, GL_FALSE, (float*)&viewMtx);
-	glUniform3fv(glGetUniformLocation(shader, "DiffuseColor"), 1, (float*)&color);
 	glBindVertexArray(VAO);
 	glDrawArrays(GL_LINE_STRIP, 0, this->count+1);
 	glBindVertexArray(0);

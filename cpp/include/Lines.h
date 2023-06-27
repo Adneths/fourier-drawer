@@ -7,7 +7,6 @@ class Lines {
 protected:
 	bool timestamped;
 	GLuint VBO, VAO;
-	glm::vec3 color;
 	size_t count;
 public:
 	/**
@@ -15,14 +14,14 @@ public:
 	 * @param count the number of lines
 	 * @param the color of the line strip
 	 */
-	Lines(glm::vec2 vertex, uint32_t count, glm::vec3 color, bool timestamped);
+	Lines(glm::vec2 vertex, uint32_t count, bool timestamped);
 	/**
 	 * @param vertices the vertex values to be copied
 	 * @param count the number of lines
 	 * @param the color of the line strip
 	 */
-	Lines(float* vertices, uint32_t count, glm::vec3 color, bool timestamped);
-	virtual void draw(GLuint shader, glm::mat3 viewMtx, float time = 0);
+	Lines(float* vertices, uint32_t count, bool timestamped);
+	virtual void draw(GLuint shader, glm::mat3 viewMtx);
 	virtual ~Lines();
 
 	virtual GLuint getBuffer();

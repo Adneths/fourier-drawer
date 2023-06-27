@@ -11,6 +11,7 @@ set (SOURCES
     src/VideoEncoder.cpp
 
     src/MultiBuffer.cpp
+    src/RenderInstance.cpp
     
     src/Lines.cpp
     src/LineStrip.cpp
@@ -26,6 +27,7 @@ set (HEADERS
     include/FourierSeries.h
 
     include/MultiBuffer.h
+    include/RenderInstance.h
 
     include/Lines.h
     include/LineStrip.h

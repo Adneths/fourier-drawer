@@ -1,10 +1,9 @@
 #include "Lines.h"
 
 
-Lines::Lines(glm::vec2 vertex, uint32_t count, glm::vec3 color, bool timestamped) : timestamped(timestamped)
+Lines::Lines(glm::vec2 vertex, uint32_t count, bool timestamped) : timestamped(timestamped)
 {
 	this->count = count;
-	this->color = color;
 
 	glGenBuffers(1, &VBO);
 	glGenVertexArrays(1, &VAO);
@@ -23,10 +22,9 @@ Lines::Lines(glm::vec2 vertex, uint32_t count, glm::vec3 color, bool timestamped
 	}
 	glBindVertexArray(0);
 }
-Lines::Lines(float* vertices, uint32_t count, glm::vec3 color, bool timestamped) : timestamped(timestamped)
+Lines::Lines(float* vertices, uint32_t count, bool timestamped) : timestamped(timestamped)
 {
 	this->count = count;
-	this->color = color;
 
 	glGenBuffers(1, &VBO);
 	glGenVertexArrays(1, &VAO);
@@ -59,12 +57,10 @@ Lines::Lines(float* vertices, uint32_t count, glm::vec3 color, bool timestamped)
 	}
 	glBindVertexArray(0);
 }
-void Lines::draw(GLuint shader, glm::mat3 viewMtx, float time)
+void Lines::draw(GLuint shader, glm::mat3 viewMtx)
 {
 	glUseProgram(shader);
 	glUniformMatrix3fv(glGetUniformLocation(shader, "viewMtx"), 1, GL_FALSE, (float*)&viewMtx);
-	glUniform3fv(glGetUniformLocation(shader, "DiffuseColor"), 1, (float*)&color);
-	glUniform1f(glGetUniformLocation(shader, "time"), time);
 	glBindVertexArray(VAO);
 	glDrawArrays(GL_LINES, 0, this->count * 2);
 	glBindVertexArray(0);

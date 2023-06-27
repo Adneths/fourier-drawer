@@ -14,10 +14,9 @@
 #include <string>
 
 #include "NumCpp.hpp"
-#include "VideoEncoder.h"
 #include "FourierSeries.h"
-#include "MultiBuffer.h"
 #include "RenderParam.h"
+#include "RenderInstance.h"
 
 #if COMPILE_CUDA
 #include "CudaFourierSeries.cuh"
@@ -109,8 +108,13 @@ extern "C" {
 			glDebugMessageCallback(errorCallback, 0);
 		}
 
+		bool hasFade = false;
+		for (int i = 0; i < renderCount; i++)
+			if (renders[i].trailFade)
+				hasFade = true;
+
 		GLuint vectorShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag", debug);
-		GLuint pathShader = renders->trailFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag", debug) : vectorShader;
+		GLuint fadeShader = hasFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag", debug) : 0;
 		if (!vectorShader) {
 			std::cerr << "Failed to initialize shader program" << std::endl;
 			glfwDestroyWindow(window);
@@ -119,23 +123,21 @@ extern "C" {
 		}
 
 		//Vertical flip
-		glm::mat3 viewMtx = glm::mat3(2.0f/ renders->width, 0, 0, 0, -2.0f/ renders->height, 0, 0, 0, 1);
+		//glm::mat3 viewMtx = glm::mat3(2.0f/ renders->width, 0, 0, 0, -2.0f/ renders->height, 0, 0, 0, 1);
 		size_t vectorSize = size / 2;
 		size_t trailSize = (size_t)(trailLength / dt);
 
-		if (renders->trailFade)
+		if (hasFade)
 		{
-			glUseProgram(pathShader);
-			glUniform1f(glGetUniformLocation(pathShader, "trailLength"), trailLength);
+			glUseProgram(fadeShader);
+			glUniform1f(glGetUniformLocation(fadeShader, "trailLength"), trailLength);
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
-		LineStrip* vector = new LineStrip(glm::vec2(0,0), vectorSize, renders->vectorColor);
-		Lines* trail = new Lines(glm::vec2(0,0), trailSize, renders->trailColor, renders->trailFade);
+		LineStrip* vector = new LineStrip(glm::vec2(0,0), vectorSize);
+		Lines* trail = new Lines(glm::vec2(0,0), trailSize, hasFade);
 		
-		VideoEncoder* encoder = new VideoEncoder(renders->output, renders->width, renders->height, renders->fps);
-		encoder->initialize();
 
 		nc::NdArray<std::complex<float>> mags((std::complex<float>*)data, vectorSize);
 		nc::NdArray<int> freqs = nc::append(nc::arange(0, (int)(vectorSize / 2)), nc::arange(-(int)((vectorSize + 1) / 2), 0));
@@ -148,12 +150,15 @@ extern "C" {
 #else
 		FourierSeries* fourier = new NpForuierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
 #endif
-		MultiBuffer* multiBuffer = new MultiBuffer(renders->width, renders->height, 2);
+		//MultiBuffer* multiBuffer = new MultiBuffer(renders->width, renders->height, 2);
+		RenderInstance* renderInstances = (RenderInstance*)malloc(sizeof(RenderInstance) * renderCount);
+		for (int i = 0; i < renderCount; i++)
+			renderInstances[i] = RenderInstance(renders[i], vectorShader, renders[i].trailFade ? fadeShader : vectorShader, vector, trail);
 
 		glClearColor(0, 0, 0, 1);
 		float t = start;
 		float end = start + duration;
-		uint8_t* frameraw = (uint8_t*)malloc(sizeof(uint8_t) * renders->width * renders->height * 3);
+		//uint8_t* frameraw = (uint8_t*)malloc(sizeof(uint8_t) * renders->width * renders->height * 3);
 		if (t > 0)
 		{
 			fourier->init(t);
@@ -175,11 +180,15 @@ extern "C" {
 			fourier->readyBuffers();
 			double time = glfwGetTime();
 			glClear(GL_COLOR_BUFFER_BIT);
-			vector->draw(vectorShader, viewMtx);
-			trail->draw(pathShader, viewMtx, t);
+			for (int i = 0; i < renderCount; i++)
+				renderInstances[i].draw(t);
+			//vector->draw(vectorShader, viewMtx);
+			//trail->draw(pathShader, viewMtx, t);
 			draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-			multiBuffer->nextVBO();
+			//multiBuffer->nextVBO();
+			for (int i = 0; i < renderCount; i++)
+				renderInstances[i].copy();
 			copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 
@@ -192,14 +201,16 @@ extern "C" {
 
 
 			glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-			uint8_t* ptr = multiBuffer->nextPBO();
+			for (int i = 0; i < renderCount; i++)
+				renderInstances[i].encode();
+			/*uint8_t* ptr = multiBuffer->nextPBO();
 			if (ptr != nullptr)
 			{
 				memcpy(frameraw, ptr, renders->width * renders->height * 3);
 				encoder->pushFrame(frameraw);
 			}
 			else
-				std::cout << std::endl << "Frame dropped, unable to read data" << std::endl;
+				std::cout << std::endl << "Frame dropped, unable to read data" << std::endl;*/
 
 			d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
 			if (glfwGetTime() - pTime > 2)
@@ -218,19 +229,19 @@ extern "C" {
 			std::cout << std::endl << "Total Time: " << formatTime(glfwGetTime() - sTime) << std::endl;
 		else
 			std::cout << std::endl << "Program Terminated" << std::endl;
-		free(frameraw);
-		encoder->close();
+		//free(frameraw);
+		//encoder->close();
 
 		delete vector;
 		delete trail;
-		delete encoder;
+		//delete encoder;
 		if(fourier != nullptr)
 			delete fourier;
-		delete multiBuffer;
+		//delete multiBuffer;
 
 		glDeleteProgram(vectorShader);
-		if (renders->trailFade)
-			glDeleteProgram(pathShader);
+		if (hasFade)
+			glDeleteProgram(fadeShader);
 
 		glfwDestroyWindow(window);
 		glfwTerminate();
