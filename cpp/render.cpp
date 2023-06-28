@@ -81,7 +81,7 @@ void GLAPIENTRY errorCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 
 #define TIMEOUT 30000000000ul
 extern "C" {
-	DLL_API int __cdecl render(float* data, size_t size, float dt, float duration, float start,
+	DLL_API int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start,
 		float trailLength, RenderParam* renders, size_t renderCount, int fpf, bool show, bool debug)
 	{
 		std::cout << "Initializing Scene" << std::endl;
@@ -173,7 +173,7 @@ extern "C" {
 
 		std::vector<RenderInstance*> renderInstances;
 		for (int i = 0; i < renderCount; i++)
-			renderInstances.push_back(new RenderInstance(renders[i], vectorShader, renders[i].trailFade ? fadeShader : vectorShader, vector, trail));
+			renderInstances.push_back(new RenderInstance(renders[i], vectorShader, renders[i].trailFade ? fadeShader : vectorShader, vector, trail, width, height));
 
 		glClearColor(0, 0, 0, 1);
 		float t = start;

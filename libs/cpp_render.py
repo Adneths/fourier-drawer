@@ -11,12 +11,12 @@ class RenderParam(Structure):
 def hex2vec(hexCode):
 	return Vec3(*[((hexCode>>16)&0xff)/255,((hexCode>>8)&0xff)/255,((hexCode)&0xff)/255]);
 
-def renderPath(path, center, dims, zoom, dt, duration, start, trailLength, trailFade, trailWidth, vectorWidth, trailColor, vectorColor, fps, fpf, output, cuda, show, debug):
+def renderPath(path, center, dims, view, zoom, dt, duration, start, trailLength, trailFade, trailWidth, vectorWidth, trailColor, vectorColor, fps, fpf, output, cuda, show, debug):
 	libname = os.path.join(pathlib.Path().absolute(), 'libs\\cuda_render.dll' if cuda else 'libs\\render.dll')
 	render_lib = CDLL(libname, winmode=0)
 
 	#render(float* data, size_t size, float dt, float duration, float start, float trailLength, RenderParam* renders, size_t renderCount, int fpf, bool show, bool debug)
-	render_lib.render.argtypes = [POINTER(c_float), c_size_t, c_float, c_float, c_float, c_float, POINTER(RenderParam), c_size_t, c_int, c_bool, c_bool]
+	render_lib.render.argtypes = [POINTER(c_float), c_size_t, c_int, c_int, c_float, c_float, c_float, c_float, POINTER(RenderParam), c_size_t, c_int, c_bool, c_bool]
 	
 	X = np.fft.fft(path)/len(path)
 	data = np.empty((X.size*2), dtype=float)
@@ -35,5 +35,5 @@ def renderPath(path, center, dims, zoom, dt, duration, start, trailLength, trail
 	if len(params) == 0:
 		if not output.endswith('.mp4'):
 			output += '.mp4';
-		params.append(RenderParam(center[0], center[1], dims[0], dims[1], zoom, vectorWidth, trailWidth, hex2vec(vectorColor), hex2vec(trailColor), fps, str.encode(output), False, trailFade))	
-	render_lib.render((c_float * len(data))(*data), len(data), dt, duration, start, trailLength, (RenderParam * len(params))(*params), len(params), fpf, show, debug)
+		params.append(RenderParam(center[0], center[1], view[0], view[1], zoom, vectorWidth, trailWidth, hex2vec(vectorColor), hex2vec(trailColor), fps, str.encode(output), False, trailFade))	
+	render_lib.render((c_float * len(data))(*data), len(data), dims[0], dims[1], dt, duration, start, trailLength, (RenderParam * len(params))(*params), len(params), fpf, show, debug)

@@ -20,7 +20,7 @@ private:
 	LineStrip* vector;
 	Lines* trail;
 public:
-	RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail);
+	RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail, float width, float height);
 	~RenderInstance();
 	GLsync draw(float time);
 	void encode();

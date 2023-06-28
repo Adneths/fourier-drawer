@@ -1,11 +1,13 @@
 #include "RenderInstance.h"
 
 
-RenderInstance::RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail)
+RenderInstance::RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail, float width, float height)
 	:params(params), vectorShader(vectorShader),
 		pathShader(pathShader), vector(vector), trail(trail) {
 	//Vertical flip
-	viewMtx = glm::mat3(2.0f * params.zoom, 0, 0, 0, -2.0f * params.zoom, 0, 2.0f * params.x / params.width, -2.0f * params.y / params.height, 1.0f);
+	viewMtx = glm::mat3(2.0f * width / params.width * params.zoom, 0, 0,
+		0, -2.0f * height / params.height * params.zoom, 0,
+		2.0f * params.x / width, -2.0f * params.y / height, 1.0f);
 
 	multiBuffer = new MultiBuffer(params.width, params.height, 2);
 	encoder = new VideoEncoder(params.output, params.width, params.height, params.fps);

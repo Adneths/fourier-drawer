@@ -56,7 +56,8 @@ parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A
 parser.add_argument('-g', '--gpu', type=str, default=None, help='Use Cuda to accelerate rendering process (use a number to specify a gpu or * for any)')
 
 parser.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offsets the center')
-parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
+parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the input (defaults to image/video dimensions, or 800x800 for svg)')
+parser.add_argument('-view', '--viewport', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
 parser.add_argument('--zoom', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--density', type=float, default=2, help='how densely packed are samples of a path')
@@ -79,6 +80,11 @@ if args.dimension != None:
 	dims = (int(s[0])//10*10,int(s[1])//10*10)
 else:
 	dims = None
+if args.viewport != None:
+	s = ''.join(args.viewport.split()).split('x')
+	view = (int(s[0])//10*10,int(s[1])//10*10)
+else:
+	view = None
 
 if args.center != None:
 	s = ''.join(args.center.split()).split('x')
@@ -132,4 +138,4 @@ if fpf > 1024:
 
 print('Loading Libraries')
 from libs.cpp_render import renderPath
-renderPath(path, center, dims, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, args.gpu!=None, args.show, args.debug)
+renderPath(path, center, dims, view, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, args.gpu!=None, args.show, args.debug)
