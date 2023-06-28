@@ -1,0 +1,34 @@
+{
+	"renders": [
+		{
+			"x": 0,
+			"y": 0,
+			"width": 800,
+			"height": 800,
+			"zoom": 1,
+			"vector_width": 1,
+			"trail_width": 1.5,
+			"vector_color": "#ffffff",
+			"trail_color": "#ffff00",
+			"fps": 60,
+			"output": "out.mp4",
+			"follow_path": false,
+			"trail_fade": true
+		},
+		{
+			"x": 100,
+			"y": -100,
+			"width": 1200,
+			"height": 1200,
+			"zoom": 2,
+			"vector_width": 1.5,
+			"trail_width": 1,
+			"vector_color": "#ffff00",
+			"trail_color": "#ffffff",
+			"fps": 30,
+			"output": "out.mp4",
+			"follow_path": true,
+			"trail_fade": false
+		}
+	]
+}

@@ -5,8 +5,10 @@
 #include <string.h>
 #include <signal.h>
 #include <cstdlib>
-#include "constant.h"
+#include <set>
+#include <string>
 
+#include "constant.h"
 #include "core.h"
 #include "Shader.h"
 #include "LineStrip.h"
@@ -91,7 +93,7 @@ extern "C" {
 		}
 
 		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-		GLFWwindow* window = glfwCreateWindow(renders->width, renders->height, "Fourier", NULL, NULL);
+		GLFWwindow* window = glfwCreateWindow(1, 1, "Fourier", NULL, NULL);
 		if (!window) {
 			std::cerr << "Failed to open GLFW window." << std::endl;
 			glfwTerminate();
@@ -151,9 +153,27 @@ extern "C" {
 		FourierSeries* fourier = new NpForuierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
 #endif
 		//MultiBuffer* multiBuffer = new MultiBuffer(renders->width, renders->height, 2);
-		RenderInstance* renderInstances = (RenderInstance*)malloc(sizeof(RenderInstance) * renderCount);
+
+		std::set<std::string> names;
 		for (int i = 0; i < renderCount; i++)
-			renderInstances[i] = RenderInstance(renders[i], vectorShader, renders[i].trailFade ? fadeShader : vectorShader, vector, trail);
+		{
+			std::string n = renders[i].output;
+			std::string nn = n;
+			int k = 0;
+			while (names.find(nn) != names.end())
+			{
+				int ind = n.find_last_of('.');
+				nn = n.substr(0, ind) + std::to_string(++k) + n.substr(ind);
+			}
+			names.insert(nn);
+			char* nnp = (char*)malloc(sizeof(char) * (nn.size() + 1));
+			strcpy(nnp, nn.c_str());
+			renders[i].output = nnp;
+		}
+
+		std::vector<RenderInstance*> renderInstances;
+		for (int i = 0; i < renderCount; i++)
+			renderInstances.push_back(new RenderInstance(renders[i], vectorShader, renders[i].trailFade ? fadeShader : vectorShader, vector, trail));
 
 		glClearColor(0, 0, 0, 1);
 		float t = start;
@@ -172,37 +192,38 @@ extern "C" {
 		double pTime = glfwGetTime();
 		double d64[64] = {0};
 		int len = 0;
-		GLsync draw, copy, step;
+		GLsync copy, step;
+		GLsync* draws = (GLsync*)malloc(sizeof(GLsync) * renderCount);
 		while (t < end && alive) {
 			//glfwPollEvents();
 			//glfwSwapBuffers(window);
 
 			fourier->readyBuffers();
 			double time = glfwGetTime();
-			glClear(GL_COLOR_BUFFER_BIT);
 			for (int i = 0; i < renderCount; i++)
-				renderInstances[i].draw(t);
+				renderInstances[i]->draw(t);
 			//vector->draw(vectorShader, viewMtx);
 			//trail->draw(pathShader, viewMtx, t);
-			draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+			//draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 			//multiBuffer->nextVBO();
-			for (int i = 0; i < renderCount; i++)
-				renderInstances[i].copy();
+			//for (int i = 0; i < renderCount; i++)
+			//	renderInstances[i]->copy();
 			copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 
 			t += fourier->increment(fpf, t);
 			step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-			glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+			for(int i = 0; i < renderCount; i++)
+				glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 			glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 			fourier->updateBuffers();
 
 
 			glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 			for (int i = 0; i < renderCount; i++)
-				renderInstances[i].encode();
+				renderInstances[i]->encode();
 			/*uint8_t* ptr = multiBuffer->nextPBO();
 			if (ptr != nullptr)
 			{
@@ -238,6 +259,11 @@ extern "C" {
 		if(fourier != nullptr)
 			delete fourier;
 		//delete multiBuffer;
+		for (int i = 0; i < renderCount; i++)
+		{
+			free(renders[i].output);
+			delete renderInstances[i];
+		}
 
 		glDeleteProgram(vectorShader);
 		if (hasFade)

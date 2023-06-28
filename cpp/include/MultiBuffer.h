@@ -16,6 +16,7 @@ public:
 	MultiBuffer(int width, int height, size_t count);
 	~MultiBuffer();
 
-	void nextVBO();
+	void preDraw();
+	void postDraw();
 	GLubyte* nextPBO();
 };

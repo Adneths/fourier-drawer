@@ -1,8 +1,6 @@
 #include "MultiBuffer.h"
 
-
 #include <iostream>
-
 
 MultiBuffer::MultiBuffer(int width, int height, size_t count) : count(count), width(width), height(height), ptr(nullptr),
 FBOHead(0), PBOHead(0), PBOTail(0)
@@ -43,11 +41,13 @@ MultiBuffer::~MultiBuffer()
 	free(PBOs);
 }
 
-void MultiBuffer::nextVBO()
-{
+void MultiBuffer::preDraw() {
+	glBindFramebuffer(GL_FRAMEBUFFER, FBOs[FBOHead]);
+}
+void MultiBuffer::postDraw() {
 	glBindBuffer(GL_PIXEL_PACK_BUFFER, PBOs[PBOHead]); PBOHead = (PBOHead + 1) % count;
 	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, 0);
-	glBindFramebuffer(GL_FRAMEBUFFER, FBOs[FBOHead]); FBOHead = (FBOHead + 1) % count;
+	FBOHead = (FBOHead + 1) % count;
 }
 uint8_t* MultiBuffer::nextPBO()
 {

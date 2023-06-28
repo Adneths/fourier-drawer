@@ -35,5 +35,5 @@ def renderPath(path, center, dims, zoom, dt, duration, start, trailLength, trail
 	if len(params) == 0:
 		if not output.endswith('.mp4'):
 			output += '.mp4';
-		params.append(RenderParam(center[0], center[1], dims[0], dims[1], zoom, vectorWidth, trailWidth, hex2vec(vectorColor), hex2vec(trailColor), fps, str.encode(output), False, trailFade))
+		params.append(RenderParam(center[0], center[1], dims[0], dims[1], zoom, vectorWidth, trailWidth, hex2vec(vectorColor), hex2vec(trailColor), fps, str.encode(output), False, trailFade))	
 	render_lib.render((c_float * len(data))(*data), len(data), dt, duration, start, trailLength, (RenderParam * len(params))(*params), len(params), fpf, show, debug)

@@ -26,6 +26,7 @@ set (HEADERS
 
     include/FourierSeries.h
 
+    include/RenderParam.h
     include/MultiBuffer.h
     include/RenderInstance.h
 

@@ -22,7 +22,6 @@ private:
 public:
 	RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail);
 	~RenderInstance();
-	void draw(float time);
-	void copy();
+	GLsync draw(float time);
 	void encode();
 };
