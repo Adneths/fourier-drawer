@@ -1,3 +1,5 @@
+#pragma once
+
 #include "core.h"
 #include <iostream>
 
@@ -6,7 +8,7 @@ struct RenderParam {
 	float vectorWidth, trailWidth;
 	glm::vec3 vectorColor, trailColor;
 	int fps;
-	const char* output;
+	char* output;
 	bool followPath, trailFade;
 };
 
