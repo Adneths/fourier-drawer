@@ -31,7 +31,7 @@ def renderPath(path, center, dims, zoom, dt, duration, start, trailLength, trail
 				output_name = render.get('output', 'out.mp4')
 				if not output_name.endswith('.mp4'):
 					output_name += '.mp4';
-				params.append(RenderParam(float(render.get('x', 0)), float(render.get('y', 0)), float(render.get('width', 800)), float(render.get('height', 800)), float(render.get('zoom', 1)), float(render.get('vector_width', 1)), float(render.get('trail_width', 1)), hex2vec(int(render.get('vector_color', '#ffffff')[1:], base=16)), hex2vec(int(render.get('trail_color', '#ffff00')[1:], base=16)), render.get('fps', 60), str.encode(output_name), render.get('follow_path', False), render.get('trail_fade', True)))
+				params.append(RenderParam(float(render.get('x', 0)), float(render.get('y', 0)), float(render.get('width', 800)), float(render.get('height', 800)), float(render.get('zoom', 0.9)), float(render.get('vector_width', 1)), float(render.get('trail_width', 1)), hex2vec(int(render.get('vector_color', '#ffffff')[1:], base=16)), hex2vec(int(render.get('trail_color', '#ffff00')[1:], base=16)), render.get('fps', 60), str.encode(output_name), render.get('follow_path', False), render.get('trail_fade', True)))
 	if len(params) == 0:
 		if not output.endswith('.mp4'):
 			output += '.mp4';
