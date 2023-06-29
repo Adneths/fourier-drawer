@@ -113,6 +113,9 @@ elif args.path:
 	dims = (int(np.real(data[1])),int(np.imag(data[1])))
 	frames = int(np.real(data[0]))
 
+if view == None:
+	view = dims
+
 print()
 if args.info:
 	print('Number of points:', len(path))
@@ -132,9 +135,11 @@ fpf = int(strMath(args.frames_per_frame, var))
 start = strMath(args.start, var)
 memLim = strToMemory(args.memory_limit)
 
+'''
 if fpf > 1024:
 	print('Error: fpf can not exceed 1024 (is {})'.format(fpf))
 	exit()
+'''
 
 print('Loading Libraries')
 from libs.cpp_render import renderPath

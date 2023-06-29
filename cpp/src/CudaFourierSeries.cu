@@ -29,9 +29,10 @@ __inline__ __device__ float2 blockReduceSum(float2 val, int resultantWarp) {
 
 	__syncthreads();
 
-	val = (threadIdx.x < blockDim.x / warpSize) ? shared[lane] : make_float2(0,0);
-	if (wid == resultantWarp) val = warpAllReduceSum(val);
-
+	if (wid == resultantWarp) {
+		val = (lane < blockDim.x / warpSize) ? shared[lane] : make_float2(0, 0);
+		val = warpAllReduceSum(val);
+	}
 	return val;
 }
 
@@ -53,12 +54,20 @@ __global__ void sumVector(float* mags, float* pathPtr, size_t size)
 __global__ void cudaIncrement(float* mags, int* freqs, float* pathCache, size_t size, float dt, size_t count)
 {
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
-	//int lane = threadIdx.x % warpSize;
 	if (id >= size)
 		return;
 
-	float2 v = { mags[id * 2], mags[id * 2 + 1] };
-	float2 s = { cos(dt * freqs[id]), sin(dt * freqs[id]) };
+	float2 v, s;
+	if (id < size)
+	{
+		v = { mags[id * 2], mags[id * 2 + 1] };
+		s = { cos(dt * freqs[id]), sin(dt * freqs[id]) };
+	}
+	else
+	{
+		v = { 0,0 };
+		s = { 0,0 };
+	}
 
 	float2 psum = make_float2(0,0);
 	for (int i = 0; i < count; i++)
@@ -68,13 +77,50 @@ __global__ void cudaIncrement(float* mags, int* freqs, float* pathCache, size_t 
 		if (id == i)
 			psum = val;
 	}
-	mags[id * 2] = v.x;
-	mags[id * 2 + 1] = v.y;
+	if (id < size)
+	{
+		mags[id * 2] = v.x;
+		mags[id * 2 + 1] = v.y;
+	}
 
 	if (id < count)
 	{
 		atomicAdd(&pathCache[id * 2], psum.x);
 		atomicAdd(&pathCache[id * 2 + 1], psum.y);
+	}
+}
+__global__ void cudaIncrementNoLimit(float* mags, int* freqs, float* pathCache, size_t size, float dt, size_t count)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	if (id >= size)
+		return;
+
+	float2 v = { mags[id * 2], mags[id * 2 + 1] };
+	float2 s = { cos(dt * freqs[id]), sin(dt * freqs[id]) };
+
+	float2 psum = make_float2(0, 0);
+	for (int i = 0; i < count; i++)
+	{
+		v = { v.x * s.x - v.y * s.y, v.x * s.y + v.y * s.x };
+		float2 val = blockReduceSum(v, i >> 5);
+		if (id == (i & 0x400))
+			psum = val;
+
+		if ((i & 0x400) == 0x3ff)
+		{
+			atomicAdd(&pathCache[i * 2], psum.x);
+			atomicAdd(&pathCache[i * 2 + 1], psum.y);
+		}
+	}
+	mags[id * 2] = v.x;
+	mags[id * 2 + 1] = v.y;
+
+	size_t q = count / 1024;
+	int r = count % 1024;
+	if (id < r)
+	{
+		atomicAdd(&pathCache[(q + id) * 2], psum.x);
+		atomicAdd(&pathCache[(q + id) * 2 + 1], psum.y);
 	}
 }
 
@@ -205,6 +251,11 @@ void CudaFourierSeries::resetTrail()
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
+__global__ void testReduce(float2* out) {
+	int id = threadIdx.x + blockDim.x * blockIdx.x;
+	float2 val = { 1,0 };
+	out[id] = blockReduceSum(val, 1);
+}
 CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
 	: vectorLine(vectorLine), pathLine(pathLine), cacheSize(cacheSize), size(size), dt(dt), time(0), head(0)
 {
@@ -244,7 +295,11 @@ void CudaFourierSeries::init(float time) {
 float CudaFourierSeries::increment(size_t count, float time)
 {
 	cudaMemset(devicePathCache, 0, sizeof(float) * cacheSize * 2ull);
-	cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
+	if(count <= 1024)
+		cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
+			(deviceMags, deviceFreqs, devicePathCache, size, dt, count);
+	else
+		cudaIncrementNoLimit<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
 			(deviceMags, deviceFreqs, devicePathCache, size, dt, count);
 	this->time = time;
 	return count * dt;
