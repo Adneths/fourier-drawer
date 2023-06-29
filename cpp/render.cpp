@@ -217,13 +217,6 @@ extern "C" {
 			double time = glfwGetTime();
 			for (int i = 0; i < renderCount; i++)
 				renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
-			//vector->draw(vectorShader, viewMtx);
-			//trail->draw(pathShader, viewMtx, t);
-			//draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-			//multiBuffer->nextVBO();
-			//for (int i = 0; i < renderCount; i++)
-			//	renderInstances[i]->copy();
 			copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 
@@ -239,14 +232,6 @@ extern "C" {
 			glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 			for (int i = 0; i < renderCount; i++)
 				renderInstances[i]->encode();
-			/*uint8_t* ptr = multiBuffer->nextPBO();
-			if (ptr != nullptr)
-			{
-				memcpy(frameraw, ptr, renders->width * renders->height * 3);
-				encoder->pushFrame(frameraw);
-			}
-			else
-				std::cout << std::endl << "Frame dropped, unable to read data" << std::endl;*/
 
 			d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
 			if (glfwGetTime() - pTime > 2)
@@ -267,15 +252,11 @@ extern "C" {
 			std::cout << std::endl << "Program Terminated" << std::endl;
 		if(vecHead)
 			delete vecHead;
-		//free(frameraw);
-		//encoder->close();
 
 		delete vector;
 		delete trail;
-		//delete encoder;
 		if(fourier != nullptr)
 			delete fourier;
-		//delete multiBuffer;
 		for (int i = 0; i < renderCount; i++)
 		{
 			free(renders[i].output);
