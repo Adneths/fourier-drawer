@@ -9,7 +9,7 @@ struct RenderParam {
 	glm::vec3 vectorColor, trailColor;
 	int fps;
 	char* output;
-	bool followPath, trailFade;
+	bool followTrail, trailFade;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const RenderParam& p) {
@@ -17,6 +17,6 @@ inline std::ostream& operator<<(std::ostream& os, const RenderParam& p) {
 		<< p.height << ", zoom=" << p.zoom << ", vectorWidth=" << p.vectorWidth << ", trailWidth=" << p.trailWidth
 		<< ", vectorColor=(" << p.vectorColor.x << ", " << p.vectorColor.y << ", " << p.vectorColor.z
 		<< "), trailColor=(" << p.trailColor.x << ", " << p.trailColor.y << ", " << p.trailColor.z
-		<< "), fps=" << p.fps << ", output=" << p.output << ", followPath=" << p.followPath
+		<< "), fps=" << p.fps << ", output=" << p.output << ", followTrail=" << p.followTrail
 		<< ", trailFade=" << p.trailFade << " }";
 }

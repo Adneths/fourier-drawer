@@ -2,12 +2,11 @@
 
 
 RenderInstance::RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail, float width, float height)
-	:params(params), vectorShader(vectorShader),
-		pathShader(pathShader), vector(vector), trail(trail) {
+	:params(params), vectorShader(vectorShader), pathShader(pathShader), vector(vector), trail(trail) {
 	//Vertical flip
 	viewMtx = glm::mat3(2.0f * width / params.width * params.zoom, 0, 0,
 		0, -2.0f * height / params.height * params.zoom, 0,
-		2.0f * params.x / width, -2.0f * params.y / height, 1.0f);
+		offsetX = 2.0f * params.x / width, offsetY = -2.0f * params.y / height, 1.0f);
 
 	multiBuffer = new MultiBuffer(params.width, params.height, 2);
 	encoder = new VideoEncoder(params.output, params.width, params.height, params.fps);
@@ -24,8 +23,14 @@ RenderInstance::~RenderInstance() {
 	delete encoder;
 }
 
-GLsync RenderInstance::draw(float time) {
+GLsync RenderInstance::draw(const float& time, glm::vec2* pos) {
 	multiBuffer->preDraw();
+
+	if (pos != nullptr)
+	{
+		viewMtx[2][0] = offsetX - 2.0f * params.zoom * pos->x;
+		viewMtx[2][1] = offsetY + 2.0f * params.zoom * pos->y;
+	}
 
 	glViewport(0, 0, params.width, params.height);
 	glClear(GL_COLOR_BUFFER_BIT);

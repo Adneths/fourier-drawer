@@ -12,16 +12,18 @@ private:
 	VideoEncoder* encoder;
 	uint8_t* frameraw; size_t framebytes;
 	MultiBuffer* multiBuffer;
-	RenderParam params;
 
 	GLuint vectorShader, pathShader;
 	glm::mat3 viewMtx;
+	float offsetX, offsetY;
 
 	LineStrip* vector;
 	Lines* trail;
 public:
+	const RenderParam params;
+
 	RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail, float width, float height);
 	~RenderInstance();
-	GLsync draw(float time);
+	GLsync draw(const float& time, glm::vec2* pos);
 	void encode();
 };

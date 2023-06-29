@@ -82,7 +82,7 @@ void GLAPIENTRY errorCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 #define TIMEOUT 30000000000ul
 extern "C" {
 	DLL_API int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start,
-		float trailLength, RenderParam* renders, size_t renderCount, int fpf, bool show, bool debug)
+		float trailLength, RenderParam* renders, size_t renderCount, int fpf, bool show, bool flags)
 	{
 		std::cout << "Initializing Scene" << std::endl;
 		signal(SIGINT, keyboard_interrupt);
@@ -104,7 +104,7 @@ extern "C" {
 		glewInit();
 		glfwSwapInterval(1);
 
-		if (debug)
+		if (flags & DEBUG_FLAG)
 		{
 			glEnable(GL_DEBUG_OUTPUT);
 			glDebugMessageCallback(errorCallback, 0);
@@ -115,8 +115,8 @@ extern "C" {
 			if (renders[i].trailFade)
 				hasFade = true;
 
-		GLuint vectorShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag", debug);
-		GLuint fadeShader = hasFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag", debug) : 0;
+		GLuint vectorShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag", flags & DEBUG_FLAG);
+		GLuint fadeShader = hasFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag", flags & DEBUG_FLAG) : 0;
 		if (!vectorShader) {
 			std::cerr << "Failed to initialize shader program" << std::endl;
 			glfwDestroyWindow(window);
@@ -173,7 +173,11 @@ extern "C" {
 
 		std::vector<RenderInstance*> renderInstances;
 		for (int i = 0; i < renderCount; i++)
+		{
+			if (flags & RENDER_FLAG)
+				std::cout << "Instance" << std::to_string(i+1) << ": " << renders[i] << std::endl;
 			renderInstances.push_back(new RenderInstance(renders[i], vectorShader, renders[i].trailFade ? fadeShader : vectorShader, vector, trail, width, height));
+		}
 
 		glClearColor(0, 0, 0, 1);
 		float t = start;
@@ -194,14 +198,21 @@ extern "C" {
 		int len = 0;
 		GLsync copy, step;
 		GLsync* draws = (GLsync*)malloc(sizeof(GLsync) * renderCount);
+		glm::vec2* vecHead = nullptr;
+		for (int i = 0; i < renderCount; i++)
+			if (renders[i].followTrail)
+			{
+				vecHead = new glm::vec2(0, 0);
+				break;
+			}
 		while (t < end && alive) {
 			//glfwPollEvents();
 			//glfwSwapBuffers(window);
 
-			fourier->readyBuffers();
+			fourier->readyBuffers(vecHead);
 			double time = glfwGetTime();
 			for (int i = 0; i < renderCount; i++)
-				renderInstances[i]->draw(t);
+				renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
 			//vector->draw(vectorShader, viewMtx);
 			//trail->draw(pathShader, viewMtx, t);
 			//draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -250,6 +261,8 @@ extern "C" {
 			std::cout << std::endl << "Total Time: " << formatTime(glfwGetTime() - sTime) << std::endl;
 		else
 			std::cout << std::endl << "Program Terminated" << std::endl;
+		if(vecHead)
+			delete vecHead;
 		//free(frameraw);
 		//encoder->close();
 

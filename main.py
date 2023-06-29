@@ -30,6 +30,16 @@ def strToMemory(s):
 	s = ''.join(s.split())
 	factor = {'k': 1024, 'm': 1024**2, 'g': 1024**3}
 	return float(s[:-1]) * factor[s[-1].lower()]
+	
+'''
+Debug, Path, Render, GPU
+'''
+infoMap = {'d': 1, 'p': 2, 'r': 4, 'g': 8}
+def infoBits(s):
+	flags = 0
+	for c in s:
+		flags |= infoMap.get(c, 0)
+	return int(flags);
 
 parser = argparse.ArgumentParser(description='Converts input file into a fourier series')
 parser.add_argument('-i', '--input', type=str, required=True, help='the input file')
@@ -58,18 +68,19 @@ parser.add_argument('-g', '--gpu', type=str, default=None, help='Use Cuda to acc
 parser.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offsets the center')
 parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the input (defaults to image/video dimensions, or 800x800 for svg)')
 parser.add_argument('-view', '--viewport', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
-parser.add_argument('--zoom', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
+parser.add_argument('-z', '--zoom', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
+parser.add_argument('-ft', '--follow-trail', action='store_true', help="mark to center on the head of vectors (including offset)")
+
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--density', type=float, default=2, help='how densely packed are samples of a path')
 group.add_argument('--points', type=int, default=-1, help='how many point in an image or frame')
 
-parser.add_argument('-m-lim', '--memory-limit', type=str, default='2G', help='(Approximate) Sets the maximum amount of memory the program should use during rendering. If it is insufficient the program will request for more. Accepts a number followed by a unit (K,M,G)')
+#parser.add_argument('-m-lim', '--memory-limit', type=str, default='2G', help='(Approximate) Sets the maximum amount of memory the program should use during rendering. If it is insufficient the program will request for more. Accepts a number followed by a unit (K,M,G)')
 
-parser.add_argument('--info', action='store_true', help='Prints some info about the sketch')
+parser.add_argument('--info', type=str, default='', help='d for Debug, p for Path, r for Render, g for GPU')
 parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
 
 parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
-parser.add_argument('--debug', action='store_true', help='prints some debug info')
 
 args = parser.parse_args()
 vColor = int(args.vector_color[1:], base=16)
@@ -117,7 +128,8 @@ if view == None:
 	view = dims
 
 print()
-if args.info:
+flags = infoBits(args.info)
+if (flags & 2) != 0:
 	print('Number of points:', len(path))
 	print('Output dimensions:', dims)
 	if frames != 1:
@@ -133,14 +145,9 @@ duration = strMath(args.duration, var)
 trailLength = strMath(args.trail_length, var)
 fpf = int(strMath(args.frames_per_frame, var))
 start = strMath(args.start, var)
-memLim = strToMemory(args.memory_limit)
+#memLim = strToMemory(args.memory_limit)
 
-'''
-if fpf > 1024:
-	print('Error: fpf can not exceed 1024 (is {})'.format(fpf))
-	exit()
-'''
 
 print('Loading Libraries')
 from libs.cpp_render import renderPath
-renderPath(path, center, dims, view, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, args.gpu!=None, args.show, args.debug)
+renderPath(path, center, dims, view, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.follow_trail, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, args.gpu!=None, args.show, flags)

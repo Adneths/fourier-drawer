@@ -95,4 +95,7 @@ void NpForuierSeries::updateBuffers()
 	head = (head + cacheFloatSize) % (pathBufferSize);
 }
 
-void NpForuierSeries::readyBuffers() {}
+void NpForuierSeries::readyBuffers(glm::vec2* vecHeadPtr) {
+	if (vecHeadPtr != nullptr)
+		*vecHeadPtr = glm::vec2(last[0], last[1]);
+}

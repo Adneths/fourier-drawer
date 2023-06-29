@@ -13,7 +13,7 @@ public:
 	~NpForuierSeries();
 	float increment(size_t count, float time) override;
 	void updateBuffers() override;
-	void readyBuffers() override;
+	void readyBuffers(glm::vec2* vecHeadPtr = nullptr) override;
 	void resetTrail() override;
 	void init(float time) override;
 private:

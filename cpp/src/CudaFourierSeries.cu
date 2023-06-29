@@ -243,6 +243,7 @@ void CudaFourierSeries::resetTrail()
 		(deviceMags, deviceStart, size);
 	float hostStart[3] = { 0 };
 	cudaMemcpy(hostStart, deviceStart, sizeof(float) * 2, cudaMemcpyDeviceToHost);
+	cudaMemcpy(devicePathCache + (cacheSize - 1) * 2, deviceStart, sizeof(float) * 2, cudaMemcpyDeviceToDevice);
 	cudaFree(deviceStart);
 
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
@@ -387,7 +388,9 @@ void CudaFourierSeries::updateBuffers()
 	head = (head + lineWidth * cacheSize) % (pathBufferSize);
 }
 
-void CudaFourierSeries::readyBuffers()
+void CudaFourierSeries::readyBuffers(glm::vec2* vecHeadPtr)
 {
+	if (vecHeadPtr != nullptr)
+		cudaMemcpy(vecHeadPtr, devicePathCache + (cacheSize - 1) * 2, sizeof(float) * 2, cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();
 }
