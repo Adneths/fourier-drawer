@@ -2,6 +2,7 @@
 /*.png
 /*.mp4
 /*.json
+/sample/*.mp4
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
