@@ -124,8 +124,6 @@ extern "C" {
 			return -1;
 		}
 
-		//Vertical flip
-		//glm::mat3 viewMtx = glm::mat3(2.0f/ renders->width, 0, 0, 0, -2.0f/ renders->height, 0, 0, 0, 1);
 		size_t vectorSize = size / 2;
 		size_t trailSize = (size_t)(trailLength / dt);
 
@@ -156,7 +154,6 @@ extern "C" {
 		{
 			alive = false;
 		}
-		//MultiBuffer* multiBuffer = new MultiBuffer(renders->width, renders->height, 2);
 
 		std::set<std::string> names;
 		for (int i = 0; i < renderCount; i++)
@@ -186,7 +183,6 @@ extern "C" {
 		glClearColor(0, 0, 0, 1);
 		float t = start;
 		float end = start + duration;
-		//uint8_t* frameraw = (uint8_t*)malloc(sizeof(uint8_t) * renders->width * renders->height * 3);
 		if (t > 0)
 		{
 			fourier->init(t);
