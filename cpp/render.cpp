@@ -255,7 +255,7 @@ extern "C" {
 				double sum = 0;
 				for (double d : d64)
 					sum += d;
-				sum /= 64;
+				sum /= 64 * fpf;
 				ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
 			}
 
