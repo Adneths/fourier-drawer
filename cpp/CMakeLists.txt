@@ -3,7 +3,7 @@ project(render LANGUAGES CXX CUDA)
 
 enable_language(CUDA)
 find_package(CUDAToolkit)
-
+set(CMAKE_CUDA_ARCHITECTURES 50;60;61;75)
 
 set (SOURCES
     render.cpp
@@ -51,7 +51,6 @@ target_link_libraries(render PUBLIC ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib Nu
 target_compile_features(render PRIVATE cxx_std_17)
 
 add_library(cuda_render SHARED ${SOURCES} ${HEADERS} include/CudaFourierSeries.cuh src/CudaFourierSeries.cu)
-#set_target_properties(fourier_cuda PROPERTIES CUDA_ARCHITECTURES "50;60;61;75")
 target_link_libraries(cuda_render PUBLIC CUDA::cudart ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp avcodec.lib avutil.lib avformat.lib swscale.lib)
 target_compile_features(cuda_render PRIVATE cxx_std_17)
 target_compile_definitions(cuda_render PRIVATE COMPILE_CUDA)
