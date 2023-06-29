@@ -89,38 +89,40 @@ __global__ void cudaIncrement(float* mags, int* freqs, float* pathCache, size_t 
 		atomicAdd(&pathCache[id * 2 + 1], psum.y);
 	}
 }
-__global__ void cudaIncrementNoLimit(float* mags, int* freqs, float* pathCache, size_t size, float dt, size_t count)
+__global__ void cudaIncrement1024(float* mags, int* freqs, float* pathCache, size_t size, float dt, size_t count)
 {
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
-	if (id >= size)
-		return;
 
-	float2 v = { mags[id * 2], mags[id * 2 + 1] };
-	float2 s = { cos(dt * freqs[id]), sin(dt * freqs[id]) };
+	float2 v, s;
+	if (id < size)
+	{
+		v = { mags[id * 2], mags[id * 2 + 1] };
+		s = { cos(dt * freqs[id]), sin(dt * freqs[id]) };
+	}
+	else
+	{
+		v = { 0, 0 };
+		s = { 0, 0 };
+	}
 
 	float2 psum = make_float2(0, 0);
 	for (int i = 0; i < count; i++)
 	{
 		v = { v.x * s.x - v.y * s.y, v.x * s.y + v.y * s.x };
 		float2 val = blockReduceSum(v, i >> 5);
-		if (id == (i & 0x400))
+		if (id == i)
 			psum = val;
-
-		if ((i & 0x400) == 0x3ff)
-		{
-			atomicAdd(&pathCache[i * 2], psum.x);
-			atomicAdd(&pathCache[i * 2 + 1], psum.y);
-		}
 	}
-	mags[id * 2] = v.x;
-	mags[id * 2 + 1] = v.y;
-
-	size_t q = count / 1024;
-	int r = count % 1024;
-	if (id < r)
+	if (id < size)
 	{
-		atomicAdd(&pathCache[(q + id) * 2], psum.x);
-		atomicAdd(&pathCache[(q + id) * 2 + 1], psum.y);
+		mags[id * 2] = v.x;
+		mags[id * 2 + 1] = v.y;
+	}
+
+	if (id < count)
+	{
+		atomicAdd(&pathCache[id * 2], psum.x);
+		atomicAdd(&pathCache[id * 2 + 1], psum.y);
 	}
 }
 
@@ -295,12 +297,18 @@ void CudaFourierSeries::init(float time) {
 float CudaFourierSeries::increment(size_t count, float time)
 {
 	cudaMemset(devicePathCache, 0, sizeof(float) * cacheSize * 2ull);
-	if(count <= 1024)
-		cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
-			(deviceMags, deviceFreqs, devicePathCache, size, dt, count);
+	if (size < count)
+	{
+		for (int i = 0; i < count; i += 1024)
+			cudaIncrement1024<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
+				(deviceMags, deviceFreqs, devicePathCache + i * 2, size, dt, std::min(1024ull, count - i));
+	}
 	else
-		cudaIncrementNoLimit<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
-			(deviceMags, deviceFreqs, devicePathCache, size, dt, count);
+	{
+		for (int i = 0; i < count; i += 1024)
+			cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
+				(deviceMags, deviceFreqs, devicePathCache + i * 2, size, dt, std::min(1024ull, count - i));
+	}
 	this->time = time;
 	return count * dt;
 }
