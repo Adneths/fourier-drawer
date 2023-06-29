@@ -86,10 +86,9 @@ group_render.add_argument('-ft', '--follow-trail', action='store_true', help="ma
 group_render.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='Use Cuda to accelerate rendering process (use a number to specify a GPU or ? to list avaliable GPUs)')
 
 parser.add_argument('--info', type=str, default='', help='d for Debug, p for Path, r for Render, g for GPU')
-parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
 
 
-
+#parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
 #parser.add_argument('-m-lim', '--memory-limit', type=str, default='2G', help='(Approximate) Sets the maximum amount of memory the program should use during rendering. If it is insufficient the program will request for more. Accepts a number followed by a unit (K,M,G)')
 
 args = parser.parse_args()
@@ -127,16 +126,18 @@ frames = 1
 if args.svg:
 	if dims == None:
 		dims = (800,800)
+	print('Tracing image')
 	path = boundPath(centerPath(svgToPath(args.input, abs(args.density), args.points)), (dims[0]/min(dims),dims[1]/min(dims)))
 elif args.bitmap:
 	if dims == None:
 		size = Image.open(args.input).size
 		dims = (int(size[0]/10)*10,int(size[1]/10)*10)
 	print('Tracing image')
-	path = boundPath(centerPath(imageFileToPath(args.input, abs(args.density), args.points)), (dims[0]*args.border,dims[1]*args.border))
+	path = boundPath(centerPath(imageFileToPath(args.input, abs(args.density), args.points)), (dims[0]/min(dims),dims[1]/min(dims)))
 elif args.video:
+	print('Tracing video')
 	path, dims, frames = videoToPath(args.input, abs(args.density), args.points, dims, args.border)
-	path = boundPath(centerPath(path), (dims[0]*args.border,dims[1]*args.border))
+	path = boundPath(centerPath(path), (dims[0]/min(dims),dims[1]/min(dims)))
 elif args.path:
 	print('Reading path' ,end='')
 	data = np.load(args.input)
