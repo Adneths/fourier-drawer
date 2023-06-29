@@ -15,7 +15,7 @@
 
 class CudaFourierSeries : public FourierSeries {
 public:
-	CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize);
+	CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize, int gpu, bool info);
 	~CudaFourierSeries();
 	float increment(size_t count, float time) override;
 	void updateBuffers() override;
@@ -23,6 +23,8 @@ public:
 	void resetTrail() override;
 	void init(float time) override;
 private:
+	bool invalid = false;
+
 	size_t head;
 	size_t cacheSize, size;
 	float dt, time;

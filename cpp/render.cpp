@@ -82,7 +82,7 @@ void GLAPIENTRY errorCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 #define TIMEOUT 30000000000ul
 extern "C" {
 	DLL_API int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start,
-		float trailLength, RenderParam* renders, size_t renderCount, int fpf, bool show, bool flags)
+		float trailLength, RenderParam* renders, size_t renderCount, int fpf, int gpu, bool show, int flags)
 	{
 		std::cout << "Initializing Scene" << std::endl;
 		signal(SIGINT, keyboard_interrupt);
@@ -148,10 +148,14 @@ extern "C" {
 		freqs = freqs[inds];
 		
 #if COMPILE_CUDA
-		FourierSeries* fourier = new CudaFourierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
+		FourierSeries* fourier = new CudaFourierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf, gpu, flags & GPU_FLAG);
 #else
 		FourierSeries* fourier = new NpForuierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
 #endif
+		if (!fourier->valid())
+		{
+			alive = false;
+		}
 		//MultiBuffer* multiBuffer = new MultiBuffer(renders->width, renders->height, 2);
 
 		std::set<std::string> names;

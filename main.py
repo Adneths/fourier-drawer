@@ -1,6 +1,8 @@
 import argparse
 from libs.path import *
 
+from libs.cpp_render import renderPath, printGPUInfo
+
 def strMath(s, var = {}):
 	ops = [{'*': lambda a,b: a*b, '/': lambda a,b: a/b}, {'+': lambda a,b: a+b, '-': lambda a,b: a-b}]
 	s = ''.join(s.split())
@@ -63,7 +65,7 @@ parser.add_argument('-tw', '--trail-width', type=float, default=1, help='width o
 parser.add_argument('-vw', '--vector-width', type=float, default=1, help='width of the vectors')
 parser.add_argument('-fps', type=int, default=60, help='fps of the output video')
 parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
-parser.add_argument('-g', '--gpu', type=str, default=None, help='Use Cuda to accelerate rendering process (use a number to specify a gpu or * for any)')
+parser.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='Use Cuda to accelerate rendering process (use a number to specify a GPU ? to list avaliable GPUs)')
 
 parser.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offsets the center')
 parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the input (defaults to image/video dimensions, or 800x800 for svg)')
@@ -83,6 +85,16 @@ parser.add_argument('--show', action='store_true', help='Display the sketch duri
 parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
 
 args = parser.parse_args()
+
+if args.gpu != None:
+	if args.gpu[0] == '?':
+		printGPUInfo()
+		exit(0)
+	else:
+		GPU = int(args.gpu)
+else:
+	GPU = -1
+
 vColor = int(args.vector_color[1:], base=16)
 tColor = int(args.trail_color[1:], base=16)
 
@@ -149,5 +161,4 @@ start = strMath(args.start, var)
 
 
 print('Loading Libraries')
-from libs.cpp_render import renderPath
-renderPath(path, center, dims, view, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.follow_trail, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, args.gpu!=None, args.show, flags)
+renderPath(path, center, dims, view, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.follow_trail, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, GPU, args.show, flags)

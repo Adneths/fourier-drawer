@@ -13,8 +13,8 @@ __inline__ __device__ float2 warpAllReduceSum(float2 val) {
 #pragma unroll
 	for (int mask = warpSize / 2; mask > 0; mask /= 2)
 	{
-		val.x += __shfl_xor(val.x, mask);
-		val.y += __shfl_xor(val.y, mask);
+		val.x += __shfl_xor_sync(0xffffffff, val.x, mask);
+		val.y += __shfl_xor_sync(0xffffffff, val.y, mask);
 	}
 	return val;
 }
@@ -254,14 +254,31 @@ void CudaFourierSeries::resetTrail()
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
-__global__ void testReduce(float2* out) {
-	int id = threadIdx.x + blockDim.x * blockIdx.x;
-	float2 val = { 1,0 };
-	out[id] = blockReduceSum(val, 1);
-}
-CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
+CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize, int gpu, bool info)
 	: vectorLine(vectorLine), pathLine(pathLine), cacheSize(cacheSize), size(size), dt(dt), time(0), head(0)
 {
+	cudaError_t err;
+	cudaDeviceProp deviceProperties;
+	if (err = cudaGetDeviceProperties(&deviceProperties, gpu))
+	{
+		printf("%s\n", cudaGetErrorString(err));
+		invalid = true;
+		return;
+	}
+	if (deviceProperties.major >= CUDA_MINIMUM_MAJOR_VERSION
+		&& deviceProperties.minor >= CUDA_MINIMUM_MINOR_VERSION)
+	{
+		cudaSetDevice(gpu);
+		if(info)
+			printf("Using %s - Compute Capability %d.%d\n", deviceProperties.name, deviceProperties.major, deviceProperties.minor);
+	}
+	else
+	{
+		printf("Requires minimum compute capability of %d.%d found %d.%d\n", CUDA_MINIMUM_MAJOR_VERSION, CUDA_MINIMUM_MINOR_VERSION, deviceProperties.major, deviceProperties.minor);
+		invalid = true;
+		return;
+	}
+
 	cudaMalloc(&deviceMags, sizeof(float) * size * 2ull);
 	cudaMemcpy(deviceMags, (float*)mags, sizeof(float) * size * 2ull, cudaMemcpyHostToDevice);
 	cudaMalloc(&deviceFreqs, sizeof(int) * size);

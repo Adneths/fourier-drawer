@@ -51,12 +51,15 @@ target_link_libraries(render PUBLIC ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib Nu
 target_compile_features(render PRIVATE cxx_std_17)
 
 add_library(cuda_render SHARED ${SOURCES} ${HEADERS} include/CudaFourierSeries.cuh src/CudaFourierSeries.cu)
-#set_target_properties(fourier_cuda PROPERTIES CUDA_ARCHITECTURES "50;61;75")
-#set_target_properties(fourier_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-#target_link_libraries(fourier_cuda PUBLIC ${OPENGL_LIBRARIES} CUDA::cudart)
+#set_target_properties(fourier_cuda PROPERTIES CUDA_ARCHITECTURES "50;60;61;75")
 target_link_libraries(cuda_render PUBLIC CUDA::cudart ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp avcodec.lib avutil.lib avformat.lib swscale.lib)
 target_compile_features(cuda_render PRIVATE cxx_std_17)
 target_compile_definitions(cuda_render PRIVATE COMPILE_CUDA)
+
+add_library(cuda_info SHARED include/constant.h src/cudaInfo.cu)
+target_link_libraries(cuda_info PUBLIC CUDA::cudart)
+target_compile_features(cuda_info PRIVATE cxx_std_17)
+target_compile_definitions(cuda_info PRIVATE COMPILE_CUDA)
 
 add_custom_command(TARGET render POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -73,6 +76,11 @@ add_custom_command(TARGET cuda_render POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_directory
 	"${PROJECT_SOURCE_DIR}/shaders"
 	"../../../../libs/shaders"
+)
+add_custom_command(TARGET cuda_info POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_BINARY_DIR}/cuda_info.dll"
+    "../../../../libs/cuda_info.dll"
 )
 
 add_executable(debug debug.cpp)
