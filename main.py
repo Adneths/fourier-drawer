@@ -170,4 +170,4 @@ start = strMath(args.start, var)
 
 
 print('Loading Libraries')
-renderPath(path, center, dims, view, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.follow_trail, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, GPU, args.show, flags)
+renderPath(path, center, dims, view, args.zoom, timescale/60, duration, start, trailLength, args.trail_fade or args.no_trail_fade, args.follow_trail, args.trail_width, args.vector_width, tColor, vColor, args.fps, fpf, args.output, GPU, False, flags)
