@@ -44,45 +44,53 @@ def infoBits(s):
 	return int(flags);
 
 parser = argparse.ArgumentParser(description='Converts input file into a fourier series')
-parser.add_argument('-i', '--input', type=str, required=True, help='the input file')
-parser.add_argument('-o', '--output', type=str, default='out', help='the output file name')
-group = parser.add_mutually_exclusive_group(required=True)
+
+#Input
+group_inputs = parser.add_argument_group("Input")
+group_inputs.add_argument('-i', '--input', type=str, required=True, help='the input file')
+group = group_inputs.add_mutually_exclusive_group(required=True)
 group.add_argument('-s', '--svg', action='store_true', help="marks the input file as a svg")
 group.add_argument('-b', '--bitmap', action='store_true', help="marks the input file as a bitmap type (bmp, png, jpg, etc.)")
 group.add_argument('-v', '--video', action='store_true', help="marks the input file as a video type (mp4, avi, mov, etc.)")
 group.add_argument('-p', '--path', action='store_true', help="marks the input file as a .npy (numpy array) file)")
-
-parser.add_argument('-t', '--timescale', type=str, default='1', help='how many seconds video time is 1 second real time (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
-parser.add_argument('-d', '--duration', type=str, default='2*pi', help='the duration of video time to write to file (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
-parser.add_argument('-ss', '--start', type=str, default='0', help='the time after which writing to file begins (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
-parser.add_argument('-tl', '--trail-length', type=str, default='2.1*pi', help='the duration of video time to keep the trail visible (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
-group = parser.add_mutually_exclusive_group()
-group.add_argument('-tf', '--trail-fade', action='store_true', help='whether the tail should fade with time')
-group.add_argument('-ntf', '--no-trail-fade', action='store_false', help='whether the tail should fade with time')
-parser.add_argument('-tc', '--trail-color', type=str, default='#ffff00', help='\'#xxxxxx\' color of the trail as a hexcode')
-parser.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\' color of the vectors as a hexcode')
-parser.add_argument('-tw', '--trail-width', type=float, default=1, help='width of the trail')
-parser.add_argument('-vw', '--vector-width', type=float, default=1, help='width of the vectors')
-parser.add_argument('-fps', type=int, default=60, help='fps of the output video')
-parser.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
-parser.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='Use Cuda to accelerate rendering process (use a number to specify a GPU ? to list avaliable GPUs)')
-
-parser.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offsets the center')
-parser.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the input (defaults to image/video dimensions, or 800x800 for svg)')
-parser.add_argument('-view', '--viewport', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
-parser.add_argument('-z', '--zoom', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
-parser.add_argument('-ft', '--follow-trail', action='store_true', help="mark to center on the head of vectors (including offset)")
-
-group = parser.add_mutually_exclusive_group()
+group = group_inputs.add_mutually_exclusive_group()
 group.add_argument('--density', type=float, default=2, help='how densely packed are samples of a path')
 group.add_argument('--points', type=int, default=-1, help='how many point in an image or frame')
 
-#parser.add_argument('-m-lim', '--memory-limit', type=str, default='2G', help='(Approximate) Sets the maximum amount of memory the program should use during rendering. If it is insufficient the program will request for more. Accepts a number followed by a unit (K,M,G)')
+#Output
+group_outputs = parser.add_argument_group("Output")
+group_outputs.add_argument('-o', '--output', type=str, default='out', help='the output file name')
+group_outputs.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the input (defaults to image/video dimensions, or 800x800 for svg)')
+group_outputs.add_argument('-fps', type=int, default=60, help='fps of the output video')
+group_outputs.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
+
+#Render Parameter
+group_render = parser.add_argument_group("Render Parameter")
+group_render.add_argument('-t', '--timescale', type=str, default='1', help='how many seconds video time is 1 second real time (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+group_render.add_argument('-d', '--duration', type=str, default='2*pi', help='the duration of video time to write to file (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+group_render.add_argument('-ss', '--start', type=str, default='0', help='the time after which writing to file begins (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+group_render.add_argument('-tl', '--trail-length', type=str, default='2.1*pi', help='the duration of video time to keep the trail visible (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+group = group_render.add_mutually_exclusive_group()
+group.add_argument('-tf', '--trail-fade', action='store_true', help='whether the tail should fade with time')
+group.add_argument('-ntf', '--no-trail-fade', action='store_false', help='whether the tail should fade with time')
+group_render.add_argument('-tc', '--trail-color', type=str, default='#ffff00', help='\'#xxxxxx\' color of the trail as a hexcode')
+group_render.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\' color of the vectors as a hexcode')
+group_render.add_argument('-tw', '--trail-width', type=float, default=1, help='width of the trail')
+group_render.add_argument('-vw', '--vector-width', type=float, default=1, help='width of the vectors')
+group_render.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
+group_render.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offsets the center')
+group_render.add_argument('-view', '--viewport', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
+group_render.add_argument('-z', '--zoom', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
+group_render.add_argument('-ft', '--follow-trail', action='store_true', help="mark to center on the head of vectors (including offset)")
+
+group_render.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='Use Cuda to accelerate rendering process (use a number to specify a GPU or ? to list avaliable GPUs)')
 
 parser.add_argument('--info', type=str, default='', help='d for Debug, p for Path, r for Render, g for GPU')
 parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
 
-parser.add_argument('--save-path', type=str, default=None, help='saves the path in a file to save recomputation')
+
+
+#parser.add_argument('-m-lim', '--memory-limit', type=str, default='2G', help='(Approximate) Sets the maximum amount of memory the program should use during rendering. If it is insufficient the program will request for more. Accepts a number followed by a unit (K,M,G)')
 
 args = parser.parse_args()
 
