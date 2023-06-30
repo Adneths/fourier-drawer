@@ -4,8 +4,8 @@
 RenderInstance::RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail, float width, float height)
 	:params(params), vectorShader(vectorShader), pathShader(pathShader), vector(vector), trail(trail) {
 	//Vertical flip
-	viewMtx = glm::mat3(2.0f * std::min(width, height) / params.width * params.zoom, 0, 0,
-		0, -2.0f * std::min(width, height) / params.height * params.zoom, 0,
+	viewMtx = glm::mat3(2.0f * (xScale = std::min(width, height) / params.width) * params.zoom, 0, 0,
+		0, -2.0f * (yScale = std::min(width, height) / params.height) * params.zoom, 0,
 		offsetX = 2.0f * params.x / width, offsetY = -2.0f * params.y / height, 1.0f);
 
 	multiBuffer = new MultiBuffer(params.width, params.height, 2);
@@ -28,8 +28,8 @@ GLsync RenderInstance::draw(const float& time, glm::vec2* pos) {
 
 	if (pos != nullptr)
 	{
-		viewMtx[2][0] = offsetX - 2.0f * params.zoom * pos->x;
-		viewMtx[2][1] = offsetY + 2.0f * params.zoom * pos->y;
+		viewMtx[2][0] = offsetX - 2.0f * xScale * params.zoom * pos->x;
+		viewMtx[2][1] = offsetY + 2.0f * yScale * params.zoom * pos->y;
 	}
 
 	glViewport(0, 0, params.width, params.height);

@@ -15,7 +15,7 @@ private:
 
 	GLuint vectorShader, pathShader;
 	glm::mat3 viewMtx;
-	float offsetX, offsetY;
+	float offsetX, offsetY, xScale, yScale;
 
 	LineStrip* vector;
 	Lines* trail;
