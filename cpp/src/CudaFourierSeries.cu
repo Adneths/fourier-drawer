@@ -283,7 +283,6 @@ float CudaFourierSeries::increment(size_t count, float time)
 	{
 		cudaIncrement1024<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
 			(deviceMags, deviceFreqs, devicePathCache + i * 2, size, dt, std::min(1024ull, count - i));
-		cudaDeviceSynchronize();
 	}
 	this->time = time;
 	return count * dt;

@@ -85,7 +85,10 @@ group_render.add_argument('-ft', '--follow-trail', action='store_true', help="ma
 
 group_render.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='Use Cuda to accelerate rendering process (use a number to specify a GPU or ? to list avaliable GPUs)')
 
-parser.add_argument('--info', type=str, default='', help='d for Debug, p for Path, r for Render, g for GPU')
+#Debug
+group_debug = parser.add_argument_group("Debug")
+group_debug.add_argument('--info', type=str, default='', help='d for Debug, p for Path, r for Render, g for GPU')
+group_debug.add_argument('--profile', action='store_true', help='Profiles timing information')
 
 
 #parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
@@ -147,9 +150,13 @@ elif args.path:
 
 if view == None:
 	view = dims
+	
+	
+flags = infoBits(args.info)
+if args.profile:
+	flags |= 16
 
 print()
-flags = infoBits(args.info)
 if (flags & 2) != 0:
 	print('Number of points:', len(path))
 	print('Output dimensions:', dims)

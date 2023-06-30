@@ -48,10 +48,25 @@ std::string formatTime(int seconds)
 }
 std::string formatTime(double seconds)
 {
-	int sec = (int)seconds;
-	if (sec > 3599)
-		return string_format("%d:%02d:%02d.%03d", sec / 3600, (sec % 3600) / 60, sec % 60, (int)((seconds - sec) * 1000));
-	return string_format("%02d:%02d.%03d", sec / 60, sec % 60, (int)((seconds - sec) * 1000));
+	if (seconds < 0.1)
+	{
+		seconds *= 1000;
+		if (seconds > 0.1)
+			return string_format("%.3fms", seconds);
+		seconds *= 1000;
+		if (seconds > 0.1)
+			return string_format("%.3fus", seconds);
+		seconds *= 1000;
+		if (seconds > 0.1)
+			return string_format("%.3fns", seconds);
+	}
+	else
+	{
+		int sec = (int)seconds;
+		if (sec > 3599)
+			return string_format("%d:%02d:%02d.%03d", sec / 3600, (sec % 3600) / 60, sec % 60, (int)((seconds - sec) * 1000));
+		return string_format("%02d:%02d.%03d", sec / 60, sec % 60, (int)((seconds - sec) * 1000));
+	}
 }
 
 bool alive = true;
@@ -192,7 +207,7 @@ extern "C" {
 
 		std::string ETR = "XX:XX remaining";
 		int ind = 0;
-		double sTime = glfwGetTime();
+		double sTime = glfwGetTime(), tTime = -1;
 		double pTime = glfwGetTime();
 		double d64[64] = {0};
 		int len = 0;
@@ -205,45 +220,105 @@ extern "C" {
 				vecHead = new glm::vec2(0, 0);
 				break;
 			}
-		while (t < end && alive) {
-			//glfwPollEvents();
-			//glfwSwapBuffers(window);
+		if (flags & PROFILE_FLAG)
+		{
+			size_t fCount = 0;
+			double renderD = 0, stepD = 0, encodeD = 0, startT;
+			while (t < end && alive) {
+				fCount++;
+				double time = glfwGetTime();
 
-			fourier->readyBuffers(vecHead);
-			double time = glfwGetTime();
-			for (int i = 0; i < renderCount; i++)
-				renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
-			copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-
-			t += fourier->increment(fpf, t);
-			step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-			for(int i = 0; i < renderCount; i++)
-				glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-			glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-			fourier->updateBuffers();
+				startT = glfwGetTime();
+				for (int i = 0; i < renderCount; i++)
+					draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
+				copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+				for (int i = 0; i < renderCount; i++)
+					glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				renderD += glfwGetTime() - startT;
 
 
-			glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-			for (int i = 0; i < renderCount; i++)
-				renderInstances[i]->encode();
+				startT = glfwGetTime();
+				t += fourier->increment(fpf, t);
+				fourier->updateBuffers();
+				fourier->readyBuffers(vecHead);
+				step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+				glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				stepD += glfwGetTime() - startT;
 
-			d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
-			if (glfwGetTime() - pTime > 2)
-			{
-				pTime = glfwGetTime();
-				double sum = 0;
-				for (double d : d64)
-					sum += d;
-				sum /= 64 * fpf;
-				ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
+
+				startT = glfwGetTime();
+				for (int i = 0; i < renderCount; i++)
+					renderInstances[i]->encode();
+				encodeD += glfwGetTime() - startT;
+
+
+				d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
+				if (glfwGetTime() - pTime > 2)
+				{
+					pTime = glfwGetTime();
+					double sum = 0;
+					for (double d : d64)
+						sum += d;
+					sum /= 64 * fpf;
+					ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
+				}
+
+				len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
 			}
+			tTime = glfwGetTime() - sTime;
+			double otherD = tTime - renderD - stepD - encodeD;
+			printf("\n");
+			printf("Type      Percent           Total         Frame\n-----------------------------------------------\n");
+			printf("Total      %6.2f  %14s  %12s\n", 100.0f, formatTime(tTime).c_str(), formatTime(tTime / fCount).c_str());
+			printf("Render     %6.2f  %14s  %12s\n", 100 * renderD / tTime, formatTime(renderD).c_str(), formatTime(renderD / fCount).c_str());
+			printf("Step       %6.2f  %14s  %12s\n", 100 * stepD / tTime, formatTime(stepD).c_str(), formatTime(stepD / fCount).c_str());
+			printf("Encode     %6.2f  %14s  %12s\n", 100 * encodeD / tTime, formatTime(encodeD).c_str(), formatTime(encodeD / fCount).c_str());
+			printf("Other      %6.2f  %14s  %12s", 100 * otherD / tTime, formatTime(otherD).c_str(), formatTime(otherD / fCount).c_str());
+		}
+		else
+		{
+			while (t < end && alive) {
+				//glfwPollEvents();
+				//glfwSwapBuffers(window);
 
-			len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
+				fourier->readyBuffers(vecHead);
+				double time = glfwGetTime();
+				for (int i = 0; i < renderCount; i++)
+					draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
+				copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+
+				t += fourier->increment(fpf, t);
+				step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+				for (int i = 0; i < renderCount; i++)
+					glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				fourier->updateBuffers();
+
+
+				glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				for (int i = 0; i < renderCount; i++)
+					renderInstances[i]->encode();
+
+				d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
+				if (glfwGetTime() - pTime > 2)
+				{
+					pTime = glfwGetTime();
+					double sum = 0;
+					for (double d : d64)
+						sum += d;
+					sum /= 64 * fpf;
+					ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
+				}
+
+				len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
+			}
+			tTime = glfwGetTime() - sTime;
 		}
 		if (alive)
-			std::cout << std::endl << "Total Time: " << formatTime(glfwGetTime() - sTime) << std::endl;
+			std::cout << std::endl << "Total Time: " << formatTime(tTime) << std::endl;
 		else
 			std::cout << std::endl << "Program Terminated" << std::endl;
 		if(vecHead)
