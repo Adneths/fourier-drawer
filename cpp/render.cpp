@@ -267,14 +267,17 @@ extern "C" {
 				len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
 			}
 			tTime = glfwGetTime() - sTime;
-			double otherD = tTime - renderD - stepD - encodeD;
-			printf("\n");
-			printf("Type      Percent           Total         Frame\n-----------------------------------------------\n");
-			printf("Total      %6.2f  %14s  %12s\n", 100.0f, formatTime(tTime).c_str(), formatTime(tTime / fCount).c_str());
-			printf("Render     %6.2f  %14s  %12s\n", 100 * renderD / tTime, formatTime(renderD).c_str(), formatTime(renderD / fCount).c_str());
-			printf("Step       %6.2f  %14s  %12s\n", 100 * stepD / tTime, formatTime(stepD).c_str(), formatTime(stepD / fCount).c_str());
-			printf("Encode     %6.2f  %14s  %12s\n", 100 * encodeD / tTime, formatTime(encodeD).c_str(), formatTime(encodeD / fCount).c_str());
-			printf("Other      %6.2f  %14s  %12s", 100 * otherD / tTime, formatTime(otherD).c_str(), formatTime(otherD / fCount).c_str());
+			if (alive)
+			{
+				double otherD = tTime - renderD - stepD - encodeD;
+				printf("\n");
+				printf("Type      Percent           Total         Frame\n-----------------------------------------------\n");
+				printf("Total      %6.2f  %14s  %12s\n", 100.0f, formatTime(tTime).c_str(), formatTime(tTime / fCount).c_str());
+				printf("Render     %6.2f  %14s  %12s\n", 100 * renderD / tTime, formatTime(renderD).c_str(), formatTime(renderD / fCount).c_str());
+				printf("Step       %6.2f  %14s  %12s\n", 100 * stepD / tTime, formatTime(stepD).c_str(), formatTime(stepD / fCount).c_str());
+				printf("Encode     %6.2f  %14s  %12s\n", 100 * encodeD / tTime, formatTime(encodeD).c_str(), formatTime(encodeD / fCount).c_str());
+				printf("Other      %6.2f  %14s  %12s", 100 * otherD / tTime, formatTime(otherD).c_str(), formatTime(otherD / fCount).c_str());
+			}
 		}
 		else
 		{
