@@ -45,8 +45,8 @@ def infoBits(s):
 
 parser = argparse.ArgumentParser(description='Converts input file into a fourier series')
 
-#Input
-group_inputs = parser.add_argument_group("Input")
+#Input Parameter
+group_inputs = parser.add_argument_group("Input Parameter")
 group_inputs.add_argument('-i', '--input', type=str, required=True, help='the input file')
 group = group_inputs.add_mutually_exclusive_group(required=True)
 group.add_argument('-s', '--svg', action='store_true', help="marks the input file as a svg")
@@ -57,8 +57,8 @@ group = group_inputs.add_mutually_exclusive_group()
 group.add_argument('--density', type=float, default=2, help='how densely packed are samples of a path')
 group.add_argument('--points', type=int, default=-1, help='how many point in an image or frame')
 
-#Output
-group_outputs = parser.add_argument_group("Output")
+#Output Parameter
+group_outputs = parser.add_argument_group("Output Parameter")
 group_outputs.add_argument('-o', '--output', type=str, default='out', help='the output file name')
 group_outputs.add_argument('-dim', '--dimension', type=str, default=None, help='\'[width]x[height]\' dimensions of the input (defaults to image/video dimensions, or 800x800 for svg)')
 group_outputs.add_argument('-fps', type=int, default=60, help='fps of the output video')
@@ -77,18 +77,18 @@ group_render.add_argument('-tc', '--trail-color', type=str, default='#ffff00', h
 group_render.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\' color of the vectors as a hexcode')
 group_render.add_argument('-tw', '--trail-width', type=float, default=1, help='width of the trail')
 group_render.add_argument('-vw', '--vector-width', type=float, default=1, help='width of the vectors')
-group_render.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='A frame is saved every this many frames. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
-group_render.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offsets the center')
+group_render.add_argument('-fpf', '--frames-per-frame', type=str, default='1', help='one video frame is saved every this many dts. There are 2*pi*60/{timescale} frames in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
+group_render.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offset from the center')
 group_render.add_argument('-view', '--viewport', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
 group_render.add_argument('-z', '--zoom', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
-group_render.add_argument('-ft', '--follow-trail', action='store_true', help="mark to center on the head of vectors (including offset)")
+group_render.add_argument('-ft', '--follow-trail', action='store_true', help="centers video on the head of vectors (includs offset)")
 
-group_render.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='Use Cuda to accelerate rendering process (use a number to specify a GPU or ? to list avaliable GPUs)')
+group_render.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='use Cuda to accelerate rendering process (use a number to specify a GPU or ? to list avaliable GPUs)')
 
-#Debug
-group_debug = parser.add_argument_group("Debug")
+#Debug Parameter
+group_debug = parser.add_argument_group("Debug Parameter")
 group_debug.add_argument('--info', type=str, default='', help='d for Debug, p for Path, r for Render, g for GPU')
-group_debug.add_argument('--profile', action='store_true', help='Profiles timing information')
+group_debug.add_argument('--profile', action='store_true', help='profiles timing information')
 
 
 #parser.add_argument('--show', action='store_true', help='Display the sketch during rendering')
