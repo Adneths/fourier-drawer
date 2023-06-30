@@ -14,11 +14,11 @@
 
 ## Usage
 ```
-python main.py [-h] -i INPUT (-s | -b | -v | -p) [--density DENSITY | --points POINTS] [-o OUTPUT] [-dim DIMENSION]
-               [-fps FPS] [--save-path SAVE_PATH] [-t TIMESCALE] [-d DURATION] [-ss START] [-tl TRAIL_LENGTH]
-               [-tf | -ntf] [-tc TRAIL_COLOR] [-vc VECTOR_COLOR] [-tw TRAIL_WIDTH] [-vw VECTOR_WIDTH]
-               [-fpf FRAMES_PER_FRAME] [--center CENTER] [-view VIEWPORT] [-z ZOOM] [-ft] [-g [GPU]] [--info INFO]
-               [--profile]
+python main.py [-h] -i INPUT (-s | -b | -v | -p) [--density DENSITY | --points POINTS] [-o OUTPUT]
+	       [-dim DIMENSION] [-fps FPS] [--save-path SAVE_PATH] [-t TIMESCALE] [-d DURATION]
+	       [-ss START] [-tl TRAIL_LENGTH] [-tf | -ntf] [-tc TRAIL_COLOR] [-vc VECTOR_COLOR]
+	       [-tw TRAIL_WIDTH] [-vw VECTOR_WIDTH] [-fpf FRAMES_PER_FRAME] [--center CENTER]
+	       [-view VIEWPORT] [-z ZOOM] [-ft] [-g [GPU]] [--info INFO] [--profile]
 
   -h, --help				show this help message and exit
 
@@ -61,8 +61,8 @@ Render Parameter:
 						or 800x800 for svg)
   -z ZOOM, --zoom ZOOM  		percentage (as a float) of border between the path and screen
   -ft, --follow-trail   		centers video on the head of vectors (includs offset)
-  -g [GPU], --gpu [GPU]			use Cuda to accelerate rendering process (use a number to specify a GPU
-						or ? to list avaliable GPUs)
+  -g [GPU], --gpu [GPU]			use Cuda to accelerate rendering process (use a number to specify a
+						GPU or ? to list avaliable GPUs)
 
 Debug Parameter:
   --info [INFO]           		d for Debug, p for Path, r for Render, g for GPU
