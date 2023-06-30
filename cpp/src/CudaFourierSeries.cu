@@ -51,45 +51,6 @@ __global__ void sumVector(float* mags, float* pathPtr, size_t size)
 	}
 }
 
-__global__ void cudaIncrement(float* mags, int* freqs, float* pathCache, size_t size, float dt, size_t count)
-{
-	int tx = threadIdx.x;
-	int id = blockIdx.x * blockDim.x + tx;
-	if (id >= size)
-		return;
-
-	float2 v, s;
-	if (id < size)
-	{
-		v = { mags[id * 2], mags[id * 2 + 1] };
-		s = { cos(dt * freqs[id]), sin(dt * freqs[id]) };
-	}
-	else
-	{
-		v = { 0,0 };
-		s = { 0,0 };
-	}
-
-	float2 psum = make_float2(0,0);
-	for (int i = 0; i < count; i++)
-	{
-		v = { v.x * s.x - v.y * s.y, v.x * s.y + v.y * s.x };
-		float2 val = blockReduceSum(v, i >> 5);
-		if (tx == i)
-			psum = val;
-	}
-	if (id < size)
-	{
-		mags[id * 2] = v.x;
-		mags[id * 2 + 1] = v.y;
-	}
-
-	if (tx < count)
-	{
-		atomicAdd(&pathCache[tx * 2], psum.x);
-		atomicAdd(&pathCache[tx * 2 + 1], psum.y);
-	}
-}
 __global__ void cudaIncrement1024(float* mags, int* freqs, float* pathCache, size_t size, float dt, size_t count)
 {
 	int tx = threadIdx.x;
@@ -310,26 +271,19 @@ CudaFourierSeries::~CudaFourierSeries()
 
 
 void CudaFourierSeries::init(float time) {
-	cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
+	cudaIncrement1024<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
 		(deviceMags, deviceFreqs, devicePathCache, size, time, 1);
+	cudaDeviceSynchronize();
 	this->time = time;
 }
 float CudaFourierSeries::increment(size_t count, float time)
 {
 	cudaMemset(devicePathCache, 0, sizeof(float) * cacheSize * 2ull);
-	if (size < count)
+	for (int i = 0; i < count; i += 1024)
 	{
-		//for (int i = 0; i < count; i += 1024)
-		//	cudaIncrement1024<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
-		//		(deviceMags, deviceFreqs, devicePathCache + i * 2, size, dt, std::min(1024ull, count - i));
-	}
-	else
-	{
-		//for (int i = 0; i < count; i += 1024)
-		//	cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
-		//		(deviceMags, deviceFreqs, devicePathCache + i * 2, size, dt, std::min(1024ull, count - i));
-		cudaIncrement<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
-			(deviceMags, deviceFreqs, devicePathCache, size, dt, count);
+		cudaIncrement1024<<<(size + INCREMENT_BLOCK_SIZE - 1) / INCREMENT_BLOCK_SIZE, INCREMENT_BLOCK_SIZE>>>
+			(deviceMags, deviceFreqs, devicePathCache + i * 2, size, dt, std::min(1024ull, count - i));
+		cudaDeviceSynchronize();
 	}
 	this->time = time;
 	return count * dt;
