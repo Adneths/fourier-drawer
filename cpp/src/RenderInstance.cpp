@@ -50,10 +50,6 @@ GLsync RenderInstance::draw(const float& time, glm::vec2* pos) {
 	return draw;
 }
 
-/*void RenderInstance::copy() {
-	multiBuffer->nextVBO();
-}*/
-
 void RenderInstance::encode() {
 	uint8_t* ptr = multiBuffer->nextPBO();
 	if (ptr != nullptr)
