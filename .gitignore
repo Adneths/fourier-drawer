@@ -3,6 +3,9 @@
 /*.mp4
 /*.json
 /sample/*.mp4
+/tests/*
+!/tests/test.py
+!/tests/requirements.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
