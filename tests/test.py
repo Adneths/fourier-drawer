@@ -37,18 +37,6 @@ def compareVideo(file0, file1):
 
 
 import os
-
-hasDirs = False
-for f in os.listdir('.'):
-	if os.path.isdir(f):
-		hasDirs = True
-		break
-if not hasDirs:
-	import gdown
-	url = 'https://drive.google.com/drive/folders/1uwmZLrSHK0xOvZmzLhCHHurTJI-s37xa'
-	gdown.download_folder(url, output='.', quiet=False, use_cookies=False)
-
-
 import subprocess
 for f in os.listdir('.'):
 	if os.path.isdir(f):
