@@ -1,6 +1,6 @@
 #include "VideoEncoder.h"
 #include <iostream>
-
+/*
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -9,7 +9,7 @@ extern "C" {
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 }
-
+*/
 //Modified from https://stackoverflow.com/a/59559256
 //https://stackoverflow.com/a/11845369
 void VideoEncoder::pushFrame(uint8_t* data)
