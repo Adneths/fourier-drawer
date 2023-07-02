@@ -67,6 +67,7 @@ std::string formatTime(double seconds)
 			return string_format("%d:%02d:%02d.%03d", sec / 3600, (sec % 3600) / 60, sec % 60, (int)((seconds - sec) * 1000));
 		return string_format("%02d:%02d.%03d", sec / 60, sec % 60, (int)((seconds - sec) * 1000));
 	}
+	return "";
 }
 
 bool alive = true;
