@@ -11,7 +11,7 @@ from OpenGL.GL import *
 
 import time
 
-from .util import printProgressBar
+from ..util import printProgressBar
 
 class World(object):
 	CYCLE_DURATION = 2*np.pi
@@ -107,8 +107,14 @@ class World(object):
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorBuffer)
 		
 		glClearColor(0,0,0,1)
-
+		
+		sTime = time.time();
 		self.renderLoop(window, duration, fps, fpf, output, show, matSize)
+		s = time.time() - sTime;
+		if s < 3600:
+			print('\nTotal Time: {:02d}:{:02.3f}'.format(int(s/60), s%60))
+		else:
+			print('\nTotal Time: {}:{:02d}:{:02.3f}'.format(int(s/3600), int((s%3600)/60), s%60))
 		glfw.terminate()
 		return
 	

@@ -7,3 +7,4 @@ PyOpenGL==3.1.6
 scikit_video==1.1.11
 scipy==1.8.1
 svgpathtools==1.5.0
+ffmpeg

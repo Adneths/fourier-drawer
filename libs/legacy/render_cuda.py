@@ -16,7 +16,7 @@ from .cuda_buffer import CudaOpenGLMappedArray
 
 import time
 
-from .util import printProgressBar
+from ..util import printProgressBar
 
 from .render import World, computeMatSize
 
@@ -134,9 +134,17 @@ class CudaWorld(World):
 		
 		glClearColor(0,0,0,1)
 		
+		sTime = time.time();
 		self.renderLoop(window, duration, fps, fpf, output, show, matSize)
+		s = time.time() - sTime;
 		self.buffer_vec.unregister()
 		self.buffer_path.unregister()
+		glfw.terminate()
+		
+		if s < 3600:
+			print('\nTotal Time: {:02d}:{:02.3f}'.format(int(s/60), s%60))
+		else:
+			print('\nTotal Time: {}:{:02d}:{:02.3f}'.format(int(s/3600), int((s%3600)/60), s%60))
 		glfw.terminate()
 		return
 
