@@ -1,20 +1,21 @@
 cmake_minimum_required(VERSION 3.21)
 project(render LANGUAGES CXX CUDA)
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}\\cmake")
+
 enable_language(CUDA)
-
 find_package(CUDAToolkit REQUIRED)
-set(CMAKE_CUDA_ARCHITECTURES 50;60;61;75)
+#set(CMAKE_CUDA_ARCHITECTURES 50;60;61;75)
 
+find_package(FFmpeg REQUIRED)
 find_package(OpenGL REQUIRED)
-find_package(NumCpp 2.10.1 REQUIRED)
+find_package(NumCpp 2.10.1)
 include_directories(
     include
-    $ENV{FFMPEG_INCLUDE_PATH}
+    ${FFMPEG_INCLUDE_DIRS}
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
 )
 link_directories(
     lib
-    $ENV{FFMPEG_LIB_PATH}
 )
 
 set (SOURCES
