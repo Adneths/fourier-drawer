@@ -7,6 +7,13 @@
 - Python3
 - ffmpeg [download](https://ffmpeg.org/download.html)
 
+## Build
+### Requirements
+- Ninja
+- Cuda Development Toolkit
+- ffmpeg
+- NumCpp
+
 ## Installation
 1. Install the above requirements
 2. Clone/download this repository
