@@ -183,6 +183,7 @@ __global__ void cudaFillSum2f(float2* inout, float2* blocks, size_t len) {
 void cumsum2f(float* in, float* out, size_t len) {
 	if (len > CUMSUM_BLOCK_SIZE)
 	{
+		//TODO: Use pre allocated memory based on provided max length instead of malloc/free dynamically
 		size_t blockDim = (len + CUMSUM_BLOCK_SIZE - 1) / CUMSUM_BLOCK_SIZE;
 		float* blocks;
 		cudaMalloc(&blocks, sizeof(float) * blockDim * 2);

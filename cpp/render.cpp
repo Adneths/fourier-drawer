@@ -20,6 +20,10 @@
 #include "RenderParam.h"
 #include "RenderInstance.h"
 
+#if PROFILE
+#include "profile.h"
+#endif
+
 #if COMPILE_CUDA
 #include "CudaFourierSeries.cuh"
 #else
@@ -224,34 +228,38 @@ extern "C" {
 		if (flags & PROFILE_FLAG)
 		{
 			size_t fCount = 0;
-			double renderD = 0, stepD = 0, encodeD = 0, startT;
+			double renderD = 0, stepD = 0, encodeD = 0;
 			while (t < end && alive) {
 				fCount++;
 				double time = glfwGetTime();
 
-				startT = glfwGetTime();
-				for (int i = 0; i < renderCount; i++)
-					draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
-				copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-				for (int i = 0; i < renderCount; i++)
-					glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-				glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-				renderD += glfwGetTime() - startT;
+				PUSH_RANGE("render", GREEN);
+				MEASURE(renderD) {
+					for (int i = 0; i < renderCount; i++)
+						draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
+					copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+					for (int i = 0; i < renderCount; i++)
+						glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+					glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				}
+				POP_RANGE();
 
+				PUSH_RANGE("step", AQUA);
+				MEASURE(stepD) {
+					t += fourier->increment(fpf, t);
+					fourier->updateBuffers();
+					fourier->readyBuffers(vecHead);
+					step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+					glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				}
+				POP_RANGE();
 
-				startT = glfwGetTime();
-				t += fourier->increment(fpf, t);
-				fourier->updateBuffers();
-				fourier->readyBuffers(vecHead);
-				step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-				glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-				stepD += glfwGetTime() - startT;
-
-
-				startT = glfwGetTime();
-				for (int i = 0; i < renderCount; i++)
-					renderInstances[i]->encode();
-				encodeD += glfwGetTime() - startT;
+				PUSH_RANGE("encode", RED);
+				MEASURE(encodeD) {
+					for (int i = 0; i < renderCount; i++)
+						renderInstances[i]->encode();
+				}
+				POP_RANGE();
 
 
 				d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
