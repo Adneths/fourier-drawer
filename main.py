@@ -6,7 +6,7 @@ from libs.cpp_render import renderPath, printGPUInfo
 def strMath(s, var = {}):
 	ops = [{'*': lambda a,b: a*b, '/': lambda a,b: a/b}, {'+': lambda a,b: a+b, '-': lambda a,b: a-b}]
 	s = ''.join(s.split())
-	m = re.findall('(\\+|-|\\*|\\/|[0-9]+(\\.[0-9]+)?|[Pp][Ii]|\$\{[a-zA-z]+\})', s)
+	m = re.findall(r'(\+|-|\*|\/|[0-9]+(\.[0-9]+)?|[Pp][Ii]|${[a-zA-z]+})', s)
 	exp = []
 	for sym in m:
 		if sym[0].lower() == 'pi':

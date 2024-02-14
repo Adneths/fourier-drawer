@@ -9,10 +9,10 @@
 
 ## Build
 ### Requirements
-- Ninja
 - Cuda Development Toolkit
 - ffmpeg
 - NumCpp
+	- boost
 
 ## Installation
 1. Install the above requirements

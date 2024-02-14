@@ -1,4 +1,4 @@
-from ctypes import CDLL, POINTER, byref, c_double, c_float, c_int, c_size_t, c_char_p, c_bool, Structure
+from ctypes import WinDLL, CDLL, POINTER, byref, c_double, c_float, c_int, c_size_t, c_char_p, c_bool, Structure
 import pathlib
 import os
 import numpy as np
@@ -19,7 +19,12 @@ def printGPUInfo():
 
 def renderPath(path, center, dims, view, zoom, dt, duration, start, trailLength, trailFade, followTrail, trailWidth, vectorWidth, trailColor, vectorColor, fps, fpf, output, GPU, show, flags):
 	libname = os.path.join(pathlib.Path().absolute(), 'libs\\cuda_render.dll' if GPU != -1 else 'libs\\render.dll')
-	render_lib = CDLL(libname, winmode=0)
+	for p in os.environ.get('PATH').split(';'):
+		try:
+			os.add_dll_directory(p)
+		except Exception:
+			pass;
+	render_lib = CDLL(libname)
 
 	#render(float* data, size_t size, int width, int height, float dt, float duration, float start, float trailLength, RenderParam* renders, size_t renderCount, int fpf, int gpu, bool show, bool flags)
 	render_lib.render.argtypes = [POINTER(c_float), c_size_t, c_int, c_int, c_float, c_float, c_float, c_float, POINTER(RenderParam), c_size_t, c_int, c_int, c_bool, c_int]

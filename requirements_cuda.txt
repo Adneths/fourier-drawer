@@ -1,2 +1,2 @@
-cuda_python==11.7.1
+cuda_python
 pywin32

@@ -2,6 +2,8 @@
 /*.png
 /*.mp4
 /*.json
+/*.sqlite
+/*.nsys-rep
 /sample/*.mp4
 /tests/*
 !/tests/test.py
