@@ -294,7 +294,7 @@ extern "C" {
 				//glfwPollEvents();
 				//glfwSwapBuffers(window);
 
-				fourier->readyBuffers(vecHead);
+				fourier->readyBuffers(vecHead); // TODO: Maybe push down to early copy DToH
 				double time = glfwGetTime();
 				for (int i = 0; i < renderCount; i++)
 					draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);

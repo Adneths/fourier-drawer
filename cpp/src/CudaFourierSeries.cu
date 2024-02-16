@@ -180,17 +180,20 @@ __global__ void cudaFillSum2f(float2* inout, float2* blocks, size_t len) {
 		inout[id].y += sum.y;
 	}
 }
-void cumsum2f(float* in, float* out, size_t len) {
+void CudaFourierSeries::cumsum2f(float* in, float* out, size_t len) {
+	cumsum2f(in, out, len, 0);
+}
+void CudaFourierSeries::cumsum2f(float* in, float* out, size_t len, size_t offset) {
 	if (len > CUMSUM_BLOCK_SIZE)
 	{
 		//TODO: Use pre allocated memory based on provided max length instead of malloc/free dynamically
 		size_t blockDim = (len + CUMSUM_BLOCK_SIZE - 1) / CUMSUM_BLOCK_SIZE;
-		float* blocks;
-		cudaMalloc(&blocks, sizeof(float) * blockDim * 2);
-		cudaCumsum2f<<<blockDim, CUMSUM_BLOCK_SIZE>>>((float2*)in, (float2*)out, (float2*)blocks, len);
-		cumsum2f(blocks, blocks, blockDim);
-		cudaFillSum2f<<<blockDim, CUMSUM_BLOCK_SIZE>>>((float2*)out, (float2*)blocks, len);
-		cudaFree(blocks);
+		//float* blocks;
+		//cudaMalloc(&blocks, sizeof(float) * blockDim * 2);
+		cudaCumsum2f<<<blockDim, CUMSUM_BLOCK_SIZE>>>((float2*)in, (float2*)out, ((float2*)deviceBlocks) + offset, len);
+		cumsum2f(deviceBlocks + 2ull * offset, deviceBlocks + 2ull * offset, blockDim, offset+blockDim);
+		cudaFillSum2f<<<blockDim, CUMSUM_BLOCK_SIZE>>>((float2*)out, ((float2*)deviceBlocks) + offset, len);
+		//cudaFree(blocks);
 	}
 	else
 		cudaCumsum2f<<<1, CUMSUM_BLOCK_SIZE>>>((float2*)in, (float2*)out, len);
@@ -251,6 +254,10 @@ CudaFourierSeries::CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std
 	cudaGraphicsGLRegisterBuffer(&vectorPtr, vectorLine->getBuffer(), cudaGraphicsRegisterFlagsWriteDiscard);
 	cudaGraphicsGLRegisterBuffer(&pathPtr, pathLine->getBuffer(), cudaGraphicsRegisterFlagsNone);
 
+	int blocksSize = 0; int len = size;
+	while (len > CUMSUM_BLOCK_SIZE) { blocksSize += len = (len + CUMSUM_BLOCK_SIZE - 1) / CUMSUM_BLOCK_SIZE; }
+	cudaMalloc(&deviceBlocks, sizeof(float) * blocksSize * 2ull);
+
 	float* ptr;
 	size_t mappedSize = (size + 1) * 2 * sizeof(float);
 	cudaGraphicsMapResources(1, &vectorPtr);
@@ -266,6 +273,7 @@ CudaFourierSeries::~CudaFourierSeries()
 	cudaFree(deviceMags);
 	cudaFree(deviceFreqs);
 	cudaFree(devicePathCache);
+	cudaFree(deviceBlocks);
 	cudaGraphicsUnregisterResource(vectorPtr);
 	cudaGraphicsUnregisterResource(pathPtr);
 }

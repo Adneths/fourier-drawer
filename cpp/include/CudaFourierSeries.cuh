@@ -36,6 +36,10 @@ private:
 	int* deviceFreqs;
 
 	size_t lineWidth, pathBufferSize;
+
+	float* deviceBlocks;
+	void cumsum2f(float* in, float* out, size_t len);
+	void cumsum2f(float* in, float* out, size_t len, size_t offset);
 };
 
 extern "C" DLL_API FourierSeries* __cdecl instantiate(LineStrip * vectorLine, Lines * pathLine, std::complex<float>*mags, int* freqs, size_t size, float dt, size_t cacheSize);
