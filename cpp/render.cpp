@@ -20,9 +20,7 @@
 #include "RenderParam.h"
 #include "RenderInstance.h"
 
-#if PROFILE
 #include "profile.h"
-#endif
 
 #if COMPILE_CUDA
 #include "CudaFourierSeries.cuh"
