@@ -319,25 +319,31 @@ extern "C" {
 				//glfwPollEvents();
 				//glfwSwapBuffers(window);
 
-				fourier->readyBuffers(vecHead); // TODO: Maybe push down to early copy DToH
 				double time = glfwGetTime();
+				START_RANGE(render_rid, "render", GREEN);
 				for (int i = 0; i < renderCount; i++)
 					draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
 				copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-
+				// TODO: Step & Encode Parallel Execution
+				START_RANGE(step_rid, "step", AQUA);
 				t += fourier->increment(fpf, t);
 				step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 				for (int i = 0; i < renderCount; i++)
 					glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				END_RANGE(render_rid);
 				glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				fourier->updateBuffers();
+				fourier->readyBuffers(vecHead);
+				END_RANGE(step_rid);
 
 
 				glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				START_RANGE(encode_rid, "encode", RED);
 				for (int i = 0; i < renderCount; i++)
 					renderInstances[i]->encode();
+				END_RANGE(encode_rid);
 
 				d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
 				if (glfwGetTime() - pTime > 2)
