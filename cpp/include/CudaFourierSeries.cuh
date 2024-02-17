@@ -18,8 +18,8 @@ public:
 	CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize, int gpu, bool info);
 	~CudaFourierSeries();
 	float increment(size_t count, float time) override;
-	void updateBuffers() override;
-	void readyBuffers(glm::vec2* vecHeadPtr = nullptr) override;
+	void updateBuffers(glm::vec2* vecHeadPtr = nullptr) override;
+	void readyBuffers() override;
 	void resetTrail() override;
 	void init(float time) override;
 private:

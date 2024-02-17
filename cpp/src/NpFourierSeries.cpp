@@ -79,7 +79,7 @@ float NpForuierSeries::increment(size_t count, float time)
 }
 
 
-void NpForuierSeries::updateBuffers()
+void NpForuierSeries::updateBuffers(glm::vec2* vecHeadPtr)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, vectorLine->getBuffer());
 	glBufferSubData(GL_ARRAY_BUFFER, 0, (vectorLine->getCount() + 1ull) * 2ull * sizeof(float), (float*)nc::cumsum(vector).dataRelease());
@@ -93,9 +93,10 @@ void NpForuierSeries::updateBuffers()
 	if (len < cacheFloatSize)
 		glBufferSubData(GL_ARRAY_BUFFER, 0, (cacheFloatSize - len) * sizeof(float), pathCache + len);
 	head = (head + cacheFloatSize) % (pathBufferSize);
-}
 
-void NpForuierSeries::readyBuffers(glm::vec2* vecHeadPtr) {
 	if (vecHeadPtr != nullptr)
 		*vecHeadPtr = glm::vec2(last[0], last[1]);
+}
+
+void NpForuierSeries::readyBuffers() {
 }

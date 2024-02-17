@@ -23,7 +23,7 @@ RenderInstance::~RenderInstance() {
 	delete encoder;
 }
 
-GLsync RenderInstance::draw(const float& time, glm::vec2* pos) {
+void RenderInstance::draw(const float& time, glm::vec2* pos) {
 	multiBuffer->preDraw();
 
 	if (pos != nullptr)
@@ -43,11 +43,13 @@ GLsync RenderInstance::draw(const float& time, glm::vec2* pos) {
 	glUniform1f(glGetUniformLocation(pathShader, "time"), time);
 	glLineWidth(params.trailWidth);
 	trail->draw(pathShader, viewMtx);
-	GLsync draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+	//*//GLsync draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
+	//*//return draw;
+}
+
+void RenderInstance::postDraw() {
 	multiBuffer->postDraw();
-
-	return draw;
 }
 
 void RenderInstance::encode() {

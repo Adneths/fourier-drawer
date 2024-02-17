@@ -24,6 +24,7 @@ public:
 
 	RenderInstance(RenderParam params, GLuint vectorShader, GLuint pathShader, LineStrip* vector, Lines* trail, float width, float height);
 	~RenderInstance();
-	GLsync draw(const float& time, glm::vec2* pos);
+	void draw(const float& time, glm::vec2* pos);
+	void postDraw();
 	void encode();
 };

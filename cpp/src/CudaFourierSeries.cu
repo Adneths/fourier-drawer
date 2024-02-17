@@ -347,7 +347,7 @@ __global__ void fillPathTimestamped(float* pathCache, size_t cacheLen, float* pa
 	}
 }
 
-void CudaFourierSeries::updateBuffers()
+void CudaFourierSeries::updateBuffers(glm::vec2* vecHeadPtr)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	float* ptr;
@@ -369,11 +369,12 @@ void CudaFourierSeries::updateBuffers()
 	cudaGraphicsUnmapResources(1, &pathPtr);
 
 	head = (head + lineWidth * cacheSize) % (pathBufferSize);
-}
 
-void CudaFourierSeries::readyBuffers(glm::vec2* vecHeadPtr)
-{
 	if (vecHeadPtr != nullptr)
 		cudaMemcpy(vecHeadPtr, devicePathCache + (cacheSize - 1) * 2, sizeof(float) * 2, cudaMemcpyDeviceToHost);
+}
+
+void CudaFourierSeries::readyBuffers()
+{
 	cudaDeviceSynchronize();
 }

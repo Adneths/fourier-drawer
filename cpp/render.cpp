@@ -241,7 +241,7 @@ extern "C" {
 		double pTime = glfwGetTime();
 		double d64[64] = {0};
 		int len = 0;
-		GLsync copy, step;
+		GLsync copy, step, draw;
 		GLsync* draws = (GLsync*)malloc(sizeof(GLsync) * renderCount);
 		glm::vec2* vecHead = nullptr;
 		for (int i = 0; i < renderCount; i++)
@@ -261,10 +261,14 @@ extern "C" {
 				PUSH_RANGE("render", GREEN);
 				MEASURE(renderD) {
 					for (int i = 0; i < renderCount; i++)
-						draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
-					copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+						/*draws[i] = */ renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
+					draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 					for (int i = 0; i < renderCount; i++)
-						glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+						renderInstances[i]->postDraw();
+					copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+					//*//for (int i = 0; i < renderCount; i++)
+						//*//glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+					glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 					glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				}
 				POP_RANGE();
@@ -272,8 +276,8 @@ extern "C" {
 				PUSH_RANGE("step", AQUA);
 				MEASURE(stepD) {
 					t += fourier->increment(fpf, t);
-					fourier->updateBuffers();
-					fourier->readyBuffers(vecHead);
+					fourier->updateBuffers(vecHead);
+					fourier->readyBuffers();
 					step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 					glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				}
@@ -320,30 +324,38 @@ extern "C" {
 				//glfwSwapBuffers(window);
 
 				double time = glfwGetTime();
+				// Make sure render buffers are ready
+				fourier->readyBuffers();
 				// Begin rendering
 				START_RANGE(render_rid, "render", GREEN);
 				for (int i = 0; i < renderCount; i++)
-					draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
+					/*draws[i] = */renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
+				draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+				for (int i = 0; i < renderCount; i++)
+					renderInstances[i]->postDraw();
 				copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 
 				// TODO: Step & Encode Parallel Execution
 				START_RANGE(step_rid, "step", AQUA);
 				t += fourier->increment(fpf, t);
-				step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+				//*//step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-				for (int i = 0; i < renderCount; i++)
-					glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				//*//for (int i = 0; i < renderCount; i++)
+					//*//glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				END_RANGE(render_rid);
-				glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				START_RANGE(copy_rid, "copy", YELLOW);
+				//*//glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				// Update DrawBuffer after previous render finished and next increment completed
-				fourier->updateBuffers();
-				fourier->readyBuffers(vecHead);
+				// increment and updateBuffers both use the same CUDA stream
+				fourier->updateBuffers(vecHead);
 				END_RANGE(step_rid);
 
 
 				// TODO: Step & Encode Parallel Execution
 				glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				END_RANGE(copy_rid);
 				START_RANGE(encode_rid, "encode", RED);
 				for (int i = 0; i < renderCount; i++)
 					renderInstances[i]->encode();
