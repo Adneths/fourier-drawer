@@ -89,11 +89,33 @@ int printProgressBar(float part, int barLength = 40, int minLength = 0, std::str
 	return ret;
 }
 
-void GLAPIENTRY errorCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
+
+std::string severityConversion(GLenum severity) {
+	switch (severity) {
+	case GL_DEBUG_SEVERITY_NOTIFICATION:
+		return "notification";
+	case GL_DEBUG_SEVERITY_LOW:
+		return "low";
+	case GL_DEBUG_SEVERITY_MEDIUM:
+		return "medium";
+	case GL_DEBUG_SEVERITY_HIGH:
+		return "high";
+	default:
+		return "";
+	}
+}
+void GLAPIENTRY debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
 {
-	fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+	fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = %s (0x%x), message = %s\n",
 		(type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
-		type, severity, message);
+		type, severityConversion(severity).c_str(), severity, message);
+}
+void GLAPIENTRY warnCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
+{
+	if (severity > GL_DEBUG_SEVERITY_NOTIFICATION)
+		fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = %s (0x%x), message = %s\n",
+			(type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
+			type, severityConversion(severity).c_str(), severity, message);
 }
 
 
@@ -125,7 +147,12 @@ extern "C" {
 		if (flags & DEBUG_FLAG)
 		{
 			glEnable(GL_DEBUG_OUTPUT);
-			glDebugMessageCallback(errorCallback, 0);
+			glDebugMessageCallback(debugCallback, 0);
+		}
+		else if (flags & WARN_FLAG)
+		{
+			glEnable(GL_DEBUG_OUTPUT);
+			glDebugMessageCallback(warnCallback, 0);
 		}
 
 		bool hasFade = false;

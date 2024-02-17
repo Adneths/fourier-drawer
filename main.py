@@ -36,7 +36,7 @@ def strToMemory(s):
 '''
 Debug, Path, Render, GPU
 '''
-infoMap = {'d': 1, 'p': 2, 'r': 4, 'g': 8}
+infoMap = {'d': 1, 'p': 2, 'r': 4, 'g': 8, 'w': 32}
 def infoBits(s):
 	flags = 0
 	for c in s:
