@@ -320,10 +320,12 @@ extern "C" {
 				//glfwSwapBuffers(window);
 
 				double time = glfwGetTime();
+				// Begin rendering
 				START_RANGE(render_rid, "render", GREEN);
 				for (int i = 0; i < renderCount; i++)
 					draws[i] = renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
 				copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
 
 				// TODO: Step & Encode Parallel Execution
 				START_RANGE(step_rid, "step", AQUA);
@@ -334,17 +336,20 @@ extern "C" {
 					glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				END_RANGE(render_rid);
 				glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+				// Update DrawBuffer after previous render finished and next increment completed
 				fourier->updateBuffers();
 				fourier->readyBuffers(vecHead);
 				END_RANGE(step_rid);
 
 
+				// TODO: Step & Encode Parallel Execution
 				glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				START_RANGE(encode_rid, "encode", RED);
 				for (int i = 0; i < renderCount; i++)
 					renderInstances[i]->encode();
 				END_RANGE(encode_rid);
 
+				// Estimate timing
 				d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
 				if (glfwGetTime() - pTime > 2)
 				{
