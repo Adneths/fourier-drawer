@@ -6,7 +6,7 @@ from libs.cpp_render import renderPath, printGPUInfo
 def strMath(s, var = {}):
 	ops = [{'*': lambda a,b: a*b, '/': lambda a,b: a/b}, {'+': lambda a,b: a+b, '-': lambda a,b: a-b}]
 	s = ''.join(s.split())
-	m = re.findall(r'(\+|-|\*|\/|[0-9]+(\.[0-9]+)?|[Pp][Ii]|${[a-zA-z]+})', s)
+	m = re.findall(r'(\+|-|\*|\/|[0-9]+(\.[0-9]+)?|[Pp][Ii]|\$\{[a-zA-z]+\})', s)
 	exp = []
 	for sym in m:
 		if sym[0].lower() == 'pi':
@@ -139,7 +139,7 @@ elif args.bitmap:
 	path = boundPath(centerPath(imageFileToPath(args.input, abs(args.density), args.points)), (dims[0]/min(dims),dims[1]/min(dims)))
 elif args.video:
 	print('Tracing video')
-	path, dims, frames = videoToPath(args.input, abs(args.density), args.points, dims, args.border)
+	path, dims, frames = videoToPath(args.input, abs(args.density), args.points, dims, args.zoom)
 	path = boundPath(centerPath(path), (dims[0]/min(dims),dims[1]/min(dims)))
 elif args.path:
 	print('Reading path' ,end='')
