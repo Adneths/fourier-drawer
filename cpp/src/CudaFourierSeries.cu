@@ -223,7 +223,7 @@ void CudaFourierSeries::cumsum2f(float* in, float* out, size_t len, size_t offse
 		cudaCumsum2f<<<1, CUMSUM_BLOCK_SIZE>>>((float2*)in, (float2*)out, len);
 }
 
-void CudaFourierSeries::resetTrail()
+void CudaFourierSeries::resetTrail(glm::vec2* vecHeadPtr)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -239,6 +239,8 @@ void CudaFourierSeries::resetTrail()
 
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
 	glClearBufferData(GL_ARRAY_BUFFER, pathLine->isTimestamped() ? GL_RGB32F : GL_RG32F, GL_RGB, GL_FLOAT, &hostStart);
+	if (vecHeadPtr != nullptr)
+		*vecHeadPtr = glm::vec2(hostStart[0], hostStart[1]);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }

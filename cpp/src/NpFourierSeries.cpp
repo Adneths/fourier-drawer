@@ -1,12 +1,14 @@
 #include "NpFourierSeries.h"
 #include <algorithm>
 
-void NpForuierSeries::resetTrail()
+void NpForuierSeries::resetTrail(glm::vec2* vecHeadPtr)
 {
 	std::complex<float> sum = nc::sum(vector)[0];
 	last[0] = sum.real(); last[1] = sum.imag(); last[2] = 0;
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
 	glClearBufferData(GL_ARRAY_BUFFER, pathLine->isTimestamped() ? GL_RGB32F : GL_RG32F, GL_RGB, GL_FLOAT, &last);
+	if (vecHeadPtr != nullptr)
+		*vecHeadPtr = glm::vec2(last[0], last[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 NpForuierSeries::NpForuierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)

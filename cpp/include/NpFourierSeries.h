@@ -14,7 +14,7 @@ public:
 	float increment(size_t count, float time) override;
 	void updateBuffers(glm::vec2* vecHeadPtr = nullptr) override;
 	void readyBuffers() override;
-	void resetTrail() override;
+	void resetTrail(glm::vec2* vecHeadPtr = nullptr) override;
 	void init(float time) override;
 private:
 	size_t head;

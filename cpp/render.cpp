@@ -301,7 +301,6 @@ extern "C" {
 			fourier->init(t);
 			fourier->updateBuffers();
 		}
-		fourier->resetTrail();
 
 		std::string ETR = "XX:XX remaining";
 		int ind = 0;
@@ -320,6 +319,7 @@ extern "C" {
 					vecHead = new glm::vec2(0, 0);
 					break;
 				}
+		fourier->resetTrail(vecHead);
 		if (flags & PROFILE_FLAG)
 		{
 			std::mutex contextLock, etrLock;
