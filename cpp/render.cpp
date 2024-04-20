@@ -89,7 +89,7 @@ int printProgressBar(float part, int barLength = 40, int minLength = 0, std::str
 	return ret;
 }
 
-
+/*
 std::string severityConversion(GLenum severity) {
 	switch (severity) {
 	case GL_DEBUG_SEVERITY_NOTIFICATION:
@@ -116,6 +116,53 @@ void GLAPIENTRY warnCallback(GLenum source, GLenum type, GLuint id, GLenum sever
 		fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = %s (0x%x), message = %s\n",
 			(type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
 			type, severityConversion(severity).c_str(), severity, message);
+}
+*/
+void APIENTRY glDebugOutput(GLenum source,
+	GLenum type,
+	unsigned int id,
+	GLenum severity,
+	GLsizei length,
+	const char* message,
+	const void* userParam)
+{
+	// ignore non-significant error/warning codes
+	if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
+
+	std::cout << "---------------" << std::endl;
+	std::cout << "Debug message (" << id << "): " << message << std::endl;
+
+	switch (source)
+	{
+	case GL_DEBUG_SOURCE_API:             std::cout << "Source: API"; break;
+	case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System"; break;
+	case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cout << "Source: Shader Compiler"; break;
+	case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cout << "Source: Third Party"; break;
+	case GL_DEBUG_SOURCE_APPLICATION:     std::cout << "Source: Application"; break;
+	case GL_DEBUG_SOURCE_OTHER:           std::cout << "Source: Other"; break;
+	} std::cout << std::endl;
+
+	switch (type)
+	{
+	case GL_DEBUG_TYPE_ERROR:               std::cout << "Type: Error"; break;
+	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cout << "Type: Deprecated Behaviour"; break;
+	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cout << "Type: Undefined Behaviour"; break;
+	case GL_DEBUG_TYPE_PORTABILITY:         std::cout << "Type: Portability"; break;
+	case GL_DEBUG_TYPE_PERFORMANCE:         std::cout << "Type: Performance"; break;
+	case GL_DEBUG_TYPE_MARKER:              std::cout << "Type: Marker"; break;
+	case GL_DEBUG_TYPE_PUSH_GROUP:          std::cout << "Type: Push Group"; break;
+	case GL_DEBUG_TYPE_POP_GROUP:           std::cout << "Type: Pop Group"; break;
+	case GL_DEBUG_TYPE_OTHER:               std::cout << "Type: Other"; break;
+	} std::cout << std::endl;
+
+	switch (severity)
+	{
+	case GL_DEBUG_SEVERITY_HIGH:         std::cout << "Severity: high"; break;
+	case GL_DEBUG_SEVERITY_MEDIUM:       std::cout << "Severity: medium"; break;
+	case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: low"; break;
+	case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: notification"; break;
+	} std::cout << std::endl;
+	std::cout << std::endl;
 }
 
 
@@ -144,15 +191,18 @@ extern "C" {
 		glewInit();
 		glfwSwapInterval(1);
 
+		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_FALSE);
 		if (flags & DEBUG_FLAG)
 		{
 			glEnable(GL_DEBUG_OUTPUT);
-			glDebugMessageCallback(debugCallback, 0);
+			glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+			glDebugMessageCallback(glDebugOutput, nullptr);
+			glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_ERROR, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 		}
 		else if (flags & WARN_FLAG)
 		{
 			glEnable(GL_DEBUG_OUTPUT);
-			glDebugMessageCallback(warnCallback, 0);
+			glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 		}
 
 		bool hasFade = false;
@@ -264,13 +314,11 @@ extern "C" {
 				PUSH_RANGE("render", GREEN);
 				MEASURE(renderD) {
 					for (int i = 0; i < renderCount; i++)
-						/*draws[i] = */ renderInstances[i]->draw(t, vecHead);
+						renderInstances[i]->draw(t, vecHead);
 					draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 					for (int i = 0; i < renderCount; i++)
 						renderInstances[i]->postDraw();
 					copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-					//*//for (int i = 0; i < renderCount; i++)
-						//*//glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 					glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 					glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				}
@@ -322,16 +370,13 @@ extern "C" {
 		else
 		{
 			while (t < end && alive) {
-				//glfwPollEvents();
-				//glfwSwapBuffers(window);
-
 				double time = glfwGetTime();
 				// Make sure render buffers are ready
 				fourier->readyBuffers();
 				// Begin rendering
 				START_RANGE(render_rid, "render", GREEN);
 				for (int i = 0; i < renderCount; i++)
-					/*draws[i] = */renderInstances[i]->draw(t,vecHead);
+					renderInstances[i]->draw(t,vecHead);
 				draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 				for (int i = 0; i < renderCount; i++)
 					renderInstances[i]->postDraw();
@@ -341,14 +386,10 @@ extern "C" {
 				// TODO: Step & Encode Parallel Execution
 				START_RANGE(step_rid, "step", AQUA);
 				t += fourier->increment(spf, t);
-				//*//step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-				//*//for (int i = 0; i < renderCount; i++)
-					//*//glClientWaitSync(draws[i], GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				END_RANGE(render_rid);
 				START_RANGE(copy_rid, "copy", YELLOW);
-				//*//glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
 				// Update DrawBuffer after previous render finished and next increment completed
 				// increment and updateBuffers both use the same CUDA stream
 				fourier->updateBuffers(vecHead);
