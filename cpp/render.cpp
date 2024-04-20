@@ -122,7 +122,7 @@ void GLAPIENTRY warnCallback(GLenum source, GLenum type, GLuint id, GLenum sever
 #define TIMEOUT 30000000000ul
 extern "C" {
 	DLL_API int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start,
-		float trailLength, RenderParam* renders, size_t renderCount, int fpf, int gpu, bool show, int flags)
+		float pathLength, RenderParam* renders, size_t renderCount, int spf, int gpu, bool show, int flags)
 	{
 		std::cout << "Initializing Scene" << std::endl;
 		signal(SIGINT, keyboard_interrupt);
@@ -157,12 +157,13 @@ extern "C" {
 
 		bool hasFade = false;
 		for (int i = 0; i < renderCount; i++)
-			if (renders[i].trailFade)
-				hasFade = true;
+			for (int j = 0; j < 8; j++)
+				if (renders[i].views[i].valid && renders[i].views[j].path_fade)
+					hasFade = true;
 
-		GLuint vectorShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag", flags & DEBUG_FLAG);
+		GLuint solidShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag", flags & DEBUG_FLAG);
 		GLuint fadeShader = hasFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag", flags & DEBUG_FLAG) : 0;
-		if (!vectorShader) {
+		if (!solidShader || (hasFade && !fadeShader)) {
 			std::cerr << "Failed to initialize shader program" << std::endl;
 			glfwDestroyWindow(window);
 			glfwTerminate();
@@ -170,20 +171,19 @@ extern "C" {
 		}
 
 		size_t vectorSize = size / 2;
-		size_t trailSize = (size_t)(trailLength / dt);
+		size_t pathSize = (size_t)(pathLength / dt);
 
 		if (hasFade)
 		{
 			glUseProgram(fadeShader);
-			glUniform1f(glGetUniformLocation(fadeShader, "trailLength"), trailLength);
+			glUniform1f(glGetUniformLocation(fadeShader, "pathLength"), pathLength);
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
 		LineStrip* vector = new LineStrip(glm::vec2(0,0), vectorSize);
-		Lines* trail = new Lines(glm::vec2(0,0), trailSize, hasFade);
+		Lines* path = new Lines(glm::vec2(0,0), pathSize, hasFade);
 		
-
 		nc::NdArray<std::complex<float>> mags((std::complex<float>*)data, vectorSize);
 		nc::NdArray<int> freqs = nc::append(nc::arange(0, (int)(vectorSize / 2)), nc::arange(-(int)((vectorSize + 1) / 2), 0));
 		nc::NdArray<nc::uint32> inds = nc::argsort(-nc::abs(mags));
@@ -191,19 +191,21 @@ extern "C" {
 		freqs = freqs[inds];
 		
 #if COMPILE_CUDA
-		FourierSeries* fourier = new CudaFourierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf, gpu, flags & GPU_FLAG);
+		FourierSeries* fourier = new CudaFourierSeries(vector, path, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, spf, gpu, flags & GPU_FLAG);
 #else
-		FourierSeries* fourier = new NpForuierSeries(vector, trail, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, fpf);
+		FourierSeries* fourier = new NpForuierSeries(vector, path, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, spf);
 #endif
 		if (!fourier->valid())
 		{
 			alive = false;
 		}
 
+		glEnable(GL_STENCIL_TEST);
+		glDisable(GL_DEPTH_TEST);
 		std::set<std::string> names;
 		for (int i = 0; i < renderCount; i++)
 		{
-			std::string n = renders[i].output;
+			std::string n = renders[i].output_name;
 			std::string nn = n;
 			int k = 0;
 			while (names.find(nn) != names.end())
@@ -214,7 +216,7 @@ extern "C" {
 			names.insert(nn);
 			char* nnp = (char*)malloc(sizeof(char) * (nn.size() + 1));
 			strcpy(nnp, nn.c_str());
-			renders[i].output = nnp;
+			renders[i].output_name = nnp;
 		}
 
 		std::vector<RenderInstance*> renderInstances;
@@ -222,7 +224,7 @@ extern "C" {
 		{
 			if (flags & RENDER_FLAG)
 				std::cout << "Instance" << std::to_string(i+1) << ": " << renders[i] << std::endl;
-			renderInstances.push_back(new RenderInstance(renders[i], vectorShader, renders[i].trailFade ? fadeShader : vectorShader, vector, trail, width, height));
+			renderInstances.push_back(new RenderInstance(renders[i], solidShader, fadeShader, vector, path, width, height));
 		}
 
 		glClearColor(0, 0, 0, 1);
@@ -245,11 +247,12 @@ extern "C" {
 		GLsync* draws = (GLsync*)malloc(sizeof(GLsync) * renderCount);
 		glm::vec2* vecHead = nullptr;
 		for (int i = 0; i < renderCount; i++)
-			if (renders[i].followTrail)
-			{
-				vecHead = new glm::vec2(0, 0);
-				break;
-			}
+			for (int j = 0; j < 8; j++)
+				if (renders[i].views[i].valid && renders[i].views[j].follow_path)
+				{
+					vecHead = new glm::vec2(0, 0);
+					break;
+				}
 		if (flags & PROFILE_FLAG)
 		{
 			size_t fCount = 0;
@@ -261,7 +264,7 @@ extern "C" {
 				PUSH_RANGE("render", GREEN);
 				MEASURE(renderD) {
 					for (int i = 0; i < renderCount; i++)
-						/*draws[i] = */ renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
+						/*draws[i] = */ renderInstances[i]->draw(t, vecHead);
 					draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 					for (int i = 0; i < renderCount; i++)
 						renderInstances[i]->postDraw();
@@ -275,7 +278,7 @@ extern "C" {
 
 				PUSH_RANGE("step", AQUA);
 				MEASURE(stepD) {
-					t += fourier->increment(fpf, t);
+					t += fourier->increment(spf, t);
 					fourier->updateBuffers(vecHead);
 					fourier->readyBuffers();
 					step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -290,7 +293,6 @@ extern "C" {
 				}
 				POP_RANGE();
 
-
 				d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
 				if (glfwGetTime() - pTime > 2)
 				{
@@ -298,7 +300,7 @@ extern "C" {
 					double sum = 0;
 					for (double d : d64)
 						sum += d;
-					sum /= 64 * fpf;
+					sum /= 64 * spf;
 					ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
 				}
 
@@ -329,7 +331,7 @@ extern "C" {
 				// Begin rendering
 				START_RANGE(render_rid, "render", GREEN);
 				for (int i = 0; i < renderCount; i++)
-					/*draws[i] = */renderInstances[i]->draw(t, renderInstances[i]->params.followTrail ? vecHead : nullptr);
+					/*draws[i] = */renderInstances[i]->draw(t,vecHead);
 				draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 				for (int i = 0; i < renderCount; i++)
 					renderInstances[i]->postDraw();
@@ -338,7 +340,7 @@ extern "C" {
 
 				// TODO: Step & Encode Parallel Execution
 				START_RANGE(step_rid, "step", AQUA);
-				t += fourier->increment(fpf, t);
+				t += fourier->increment(spf, t);
 				//*//step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 				//*//for (int i = 0; i < renderCount; i++)
@@ -369,7 +371,7 @@ extern "C" {
 					double sum = 0;
 					for (double d : d64)
 						sum += d;
-					sum /= 64 * fpf;
+					sum /= 64 * spf;
 					ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
 				}
 
@@ -385,16 +387,16 @@ extern "C" {
 			delete vecHead;
 
 		delete vector;
-		delete trail;
+		delete path;
 		if(fourier != nullptr)
 			delete fourier;
 		for (int i = 0; i < renderCount; i++)
 		{
-			free(renders[i].output);
+			free(renders[i].output_name);
 			delete renderInstances[i];
 		}
 
-		glDeleteProgram(vectorShader);
+		glDeleteProgram(solidShader);
 		if (hasFade)
 			glDeleteProgram(fadeShader);
 

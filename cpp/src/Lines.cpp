@@ -11,7 +11,7 @@ Lines::Lines(glm::vec2 vertex, uint32_t count, bool timestamped) : timestamped(t
 	glBindVertexArray(VAO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, (timestamped ? 6ull : 4ull) * count * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
-	glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &vertex);
+	glClearBufferData(GL_ARRAY_BUFFER, timestamped ? GL_RGB32F : GL_RG32F, GL_RGB, GL_FLOAT, &glm::vec3(vertex, 0.0f));
 
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, (timestamped ? 3ull : 2ull) * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
@@ -22,7 +22,7 @@ Lines::Lines(glm::vec2 vertex, uint32_t count, bool timestamped) : timestamped(t
 	}
 	glBindVertexArray(0);
 }
-Lines::Lines(float* vertices, uint32_t count, bool timestamped) : timestamped(timestamped)
+/*Lines::Lines(float* vertices, uint32_t count, bool timestamped) : timestamped(timestamped)
 {
 	this->count = count;
 
@@ -34,14 +34,16 @@ Lines::Lines(float* vertices, uint32_t count, bool timestamped) : timestamped(ti
 	if(timestamped)
 	{
 		float* data = (float*)malloc(sizeof(float) * 6ull * count);
-		for (int i = 0; i < count; i++)
-		{
-			data[i * 3 + 0] = vertices[i * 2 + 0];
-			data[i * 3 + 1] = vertices[i * 2 + 1];
-			data[i * 3 + 2] = 0;
+		if (data) {
+			for (int i = 0; i < count; i++)
+			{
+				data[i * 3 + 0] = vertices[i * 2 + 0];
+				data[i * 3 + 1] = vertices[i * 2 + 1];
+				data[i * 3 + 2] = 0;
+			}
+			glBufferData(GL_ARRAY_BUFFER, 6ull * count * sizeof(float), data, GL_DYNAMIC_DRAW);
+			free(data);
 		}
-		glBufferData(GL_ARRAY_BUFFER, 6ull * count * sizeof(float), data, GL_DYNAMIC_DRAW);
-		free(data);
 	}
 	else
 	{
@@ -56,11 +58,14 @@ Lines::Lines(float* vertices, uint32_t count, bool timestamped) : timestamped(ti
 		glEnableVertexAttribArray(1);
 	}
 	glBindVertexArray(0);
-}
-void Lines::draw(GLuint shader, glm::mat3 viewMtx)
+}*/
+void Lines::draw(const GLuint shader, const glm::mat3 &viewMtx, const glm::vec2 &offset, const glm::vec3& color, const float linewidth)
 {
 	glUseProgram(shader);
+	glLineWidth(linewidth);
 	glUniformMatrix3fv(glGetUniformLocation(shader, "viewMtx"), 1, GL_FALSE, (float*)&viewMtx);
+	glUniform3fv(glGetUniformLocation(shader, "DiffuseColor"), 1, (float*)&color);
+	glUniform2fv(glGetUniformLocation(shader, "offset"), 1, (float*)&offset);
 	glBindVertexArray(VAO);
 	glDrawArrays(GL_LINES, 0, this->count * 2);
 	glBindVertexArray(0);

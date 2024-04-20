@@ -8,6 +8,7 @@ private:
 	int width, height;
 	GLuint* FBOs;
 	GLuint* RBOs;
+	GLuint SBO;
 	GLuint* PBOs;
 
 	uint8_t* ptr;

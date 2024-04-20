@@ -30,6 +30,7 @@ set (SOURCES
     
     src/Lines.cpp
     src/LineStrip.cpp
+    src/Rect.cpp
 )
 
 set (HEADERS
@@ -48,7 +49,10 @@ set (HEADERS
 
     include/Lines.h
     include/LineStrip.h
+    include/Rect.h
 )
+
+#message(${AVCODEC_LIBRARIES} ${AVUTIL_LIBRARIES} ${AVFORMAT_LIBRARIES} ${SWSCALE_LIBRARIES})
 
 add_library(render SHARED ${SOURCES} ${HEADERS} include/NpFourierSeries.h src/NpFourierSeries.cpp)
 target_link_libraries(render PUBLIC ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp ${AVCODEC_LIBRARIES} ${AVUTIL_LIBRARIES} ${AVFORMAT_LIBRARIES} ${SWSCALE_LIBRARIES})

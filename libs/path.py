@@ -301,5 +301,5 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9):
 	for frame in frames:
 		a[i:i+len(frame)] = frame
 		i += len(frame)
-	a = boundPath(a, (dims[0]*border,dims[1]*border))
+	a = boundPath(a, (dims[0],dims[1]))
 	return (a, dims, count)

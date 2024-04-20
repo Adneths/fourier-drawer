@@ -19,10 +19,10 @@ public:
 	 * @param the color of the line strip
 	 */
 	LineStrip(float* vertices, uint32_t length);
-	virtual void draw(GLuint shader, glm::mat3 viewMtx);
-	virtual ~LineStrip();
+	void draw(const GLuint shader, const glm::mat3 &viewMtx, const glm::vec2& offset, const glm::vec3 &color, const float linewidth);
+	~LineStrip();
 
-	virtual GLuint getBuffer();
+	GLuint getBuffer();
 	/**
 	 * @return the number of line segments
 	 */

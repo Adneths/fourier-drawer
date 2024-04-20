@@ -20,11 +20,11 @@ public:
 	 * @param count the number of lines
 	 * @param the color of the line strip
 	 */
-	Lines(float* vertices, uint32_t count, bool timestamped);
-	virtual void draw(GLuint shader, glm::mat3 viewMtx);
-	virtual ~Lines();
+	//Lines(float* vertices, uint32_t count, bool timestamped);
+	void draw(const GLuint shader, const glm::mat3 &viewMtx, const glm::vec2& offset, const glm::vec3 &color, const float linewidth);
+	~Lines();
 
-	virtual GLuint getBuffer();
+	GLuint getBuffer();
 	/**
 	 * @return the number of lines
 	 */

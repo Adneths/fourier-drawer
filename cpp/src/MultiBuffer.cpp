@@ -10,6 +10,9 @@ FBOHead(0), PBOHead(0), PBOTail(0)
 	PBOs = (GLuint*)malloc(sizeof(GLuint) * count);
 	glGenFramebuffers(count, FBOs);
 	glGenRenderbuffers(count, RBOs);
+	glGenRenderbuffers(1, &SBO);
+	glBindRenderbuffer(GL_RENDERBUFFER, SBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
 	glGenBuffers(count, PBOs);
 	for (int i = 0; i < count; i++)
 	{
@@ -17,6 +20,7 @@ FBOHead(0), PBOHead(0), PBOTail(0)
 		glBindRenderbuffer(GL_RENDERBUFFER, RBOs[i]);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB8, width, height);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, RBOs[i]);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, SBO);
 
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		{
@@ -35,6 +39,7 @@ MultiBuffer::~MultiBuffer()
 {
 	glDeleteFramebuffers(count, FBOs);
 	glDeleteRenderbuffers(count, RBOs);
+	glDeleteRenderbuffers(1, &SBO);
 	glDeleteBuffers(count, PBOs);
 	free(FBOs);
 	free(RBOs);

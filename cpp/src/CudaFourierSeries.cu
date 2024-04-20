@@ -186,7 +186,7 @@ void CudaFourierSeries::cumsum2f(float* in, float* out, size_t len) {
 void CudaFourierSeries::cumsum2f(float* in, float* out, size_t len, size_t offset) {
 	if (len > CUMSUM_BLOCK_SIZE)
 	{
-		//TODO: Use pre allocated memory based on provided max length instead of malloc/free dynamically
+		//DONE: Use pre allocated memory based on provided max length instead of malloc/free dynamically
 		size_t blockDim = (len + CUMSUM_BLOCK_SIZE - 1) / CUMSUM_BLOCK_SIZE;
 		//float* blocks;
 		//cudaMalloc(&blocks, sizeof(float) * blockDim * 2);
@@ -214,10 +214,7 @@ void CudaFourierSeries::resetTrail()
 	cudaFree(deviceStart);
 
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
-	if (pathLine->isTimestamped())
-		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &hostStart);
-	else
-		glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &hostStart);
+	glClearBufferData(GL_ARRAY_BUFFER, pathLine->isTimestamped() ? GL_RGB32F : GL_RG32F, GL_RGB, GL_FLOAT, &hostStart);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }

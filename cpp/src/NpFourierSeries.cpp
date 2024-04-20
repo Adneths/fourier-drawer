@@ -6,10 +6,7 @@ void NpForuierSeries::resetTrail()
 	std::complex<float> sum = nc::sum(vector)[0];
 	last[0] = sum.real(); last[1] = sum.imag(); last[2] = 0;
 	glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
-	if (pathLine->isTimestamped())
-		glClearBufferData(GL_ARRAY_BUFFER, GL_RGB32F, GL_RGBA, GL_FLOAT, &last);
-	else
-		glClearBufferData(GL_ARRAY_BUFFER, GL_RG32F, GL_RGBA, GL_FLOAT, &last);
+	glClearBufferData(GL_ARRAY_BUFFER, pathLine->isTimestamped() ? GL_RGB32F : GL_RG32F, GL_RGB, GL_FLOAT, &last);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 NpForuierSeries::NpForuierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize)
