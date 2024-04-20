@@ -14,15 +14,18 @@
 #include "LineStrip.h"
 #include <complex>
 #include <string>
+#include <thread>
 
 #include "NumCpp.hpp"
 #include "FourierSeries.h"
 #include "RenderParam.h"
 #include "RenderInstance.h"
+#include "bsem.h"
 
 #include "profile.h"
 
 #if COMPILE_CUDA
+#include <cuda_runtime.h>
 #include "CudaFourierSeries.cuh"
 #else
 #include "NpFourierSeries.h"
@@ -72,7 +75,7 @@ std::string formatTime(double seconds)
 	return "";
 }
 
-bool alive = true;
+volatile bool alive = true;
 void keyboard_interrupt(int signum) {
 	alive = false;
 }
@@ -165,6 +168,19 @@ void APIENTRY glDebugOutput(GLenum source,
 	std::cout << std::endl;
 }
 
+GLFWwindow* createSharedWindow(GLFWwindow* mainWindow) {
+	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+	GLFWwindow* window = glfwCreateWindow(1, 1, "Shared", NULL, mainWindow);
+	if (!window) {
+		std::cerr << "Failed to open GLFW window." << std::endl;
+		glfwTerminate();
+		exit(-1);
+	}
+
+	glfwMakeContextCurrent(window);
+	glewInit();
+	return window;
+}
 
 #define TIMEOUT 30000000000ul
 extern "C" {
@@ -291,7 +307,8 @@ extern "C" {
 		int ind = 0;
 		double sTime = glfwGetTime(), tTime = -1;
 		double pTime = glfwGetTime();
-		double d64[64] = {0};
+		double rt64[64] = { 0 };
+		double st64[64] = { 0 };
 		int len = 0;
 		GLsync copy, step, draw;
 		GLsync* draws = (GLsync*)malloc(sizeof(GLsync) * renderCount);
@@ -305,121 +322,243 @@ extern "C" {
 				}
 		if (flags & PROFILE_FLAG)
 		{
-			size_t fCount = 0;
-			double renderD = 0, stepD = 0, encodeD = 0;
-			while (t < end && alive) {
-				fCount++;
-				double time = glfwGetTime();
+			std::mutex contextLock, etrLock;
+			bsem computeSem(false), encodeSem(true), drawSem(false), copySem(false);
+			std::thread renderThread, computeThread, encodeThread, sampleThread, printThread;
 
-				PUSH_RANGE("render", GREEN);
-				MEASURE(renderD) {
-					for (int i = 0; i < renderCount; i++)
-						renderInstances[i]->draw(t, vecHead);
-					draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-					for (int i = 0; i < renderCount; i++)
-						renderInstances[i]->postDraw();
-					copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-					glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-					glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+			MAKE_RANGE(render_rid);
+			MAKE_RANGE(step_rid);
+			MAKE_RANGE(encode_rid);
+			MAKE_RANGE(copy_rid);
+			glfwMakeContextCurrent(nullptr);
+
+#if COMPILE_CUDA
+			cudaEvent_t stepEvent;
+			cudaEventCreate(&stepEvent);
+#endif
+			renderThread = std::thread([&]() {
+				while (t < end && alive) {
+					END_RANGE(copy_rid);
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						START_RANGE(render_rid, "render", GREEN);
+						for (int i = 0; i < renderCount; i++)
+							renderInstances[i]->draw(t, vecHead);
+						draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+						glfwMakeContextCurrent(nullptr);
+					}
+					encodeSem.acquire();
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						for (int i = 0; i < renderCount; i++)
+							renderInstances[i]->postDraw();
+						copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+						glfwMakeContextCurrent(nullptr);
+					}
+					drawSem.release();
+					computeSem.acquire();
 				}
-				POP_RANGE();
-
-				PUSH_RANGE("step", AQUA);
-				MEASURE(stepD) {
+			});
+			computeThread = std::thread([&]() {
+				while (t < end && alive) {
+					START_RANGE(step_rid, "step", AQUA);
 					t += fourier->increment(spf, t);
-					fourier->updateBuffers(vecHead);
-					fourier->readyBuffers();
-					step = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-					glClientWaitSync(step, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+#if COMPILE_CUDA
+					cudaEventRecord(stepEvent, 0);
+					cudaStreamAddCallback(0, [](cudaStream_t stream, cudaError_t status, void* userData) {
+						END_RANGE(*((nvtxRangeId_t*)userData));
+					}, &step_rid, 0);
+#else
+					END_RANGE(step_rid);
+#endif
+					drawSem.acquire();
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+						END_RANGE(render_rid);
+						START_RANGE(copy_rid, "copy", YELLOW);
+						fourier->updateBuffers(vecHead);
+						fourier->readyBuffers();
+						glfwMakeContextCurrent(nullptr);
+					}
+					computeSem.release();
+					copySem.release();
 				}
-				POP_RANGE();
-
-				PUSH_RANGE("encode", RED);
-				MEASURE(encodeD) {
-					for (int i = 0; i < renderCount; i++)
-						renderInstances[i]->encode();
+			});
+			encodeThread = std::thread([&]() {
+				while (t < end && alive) {
+					copySem.acquire();
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+						END_RANGE(copy_rid);
+						START_RANGE(encode_rid, "encode", RED);
+						for (int i = 0; i < renderCount; i++)
+							renderInstances[i]->encode();
+						END_RANGE(encode_rid);
+						glfwMakeContextCurrent(nullptr);
+					}
+					encodeSem.release();
 				}
-				POP_RANGE();
-
-				d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
-				if (glfwGetTime() - pTime > 2)
-				{
+			});
+			sampleThread = std::thread([&]() {
+				double time = glfwGetTime();
+				float lastT = t;
+				while (t < end && alive) {
+					std::this_thread::sleep_for(std::chrono::seconds(1));
+					rt64[ind] = (glfwGetTime() - time);
+					st64[ind] = (t - lastT);
+					ind = (ind + 1) & 0b111111;
 					pTime = glfwGetTime();
-					double sum = 0;
-					for (double d : d64)
-						sum += d;
-					sum /= 64 * spf;
-					ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
+					double rtsum = 0;
+					double stsum = 0;
+					for (double d : rt64)
+						rtsum += d;
+					for (double d : st64)
+						stsum += d;
+					{
+						std::lock_guard<std::mutex> guard(etrLock);
+						ETR = formatTime((int)(rtsum / stsum * (end - t))) + " remaining";
+					}
+					time = glfwGetTime();
+					lastT = t;
+				}				
+			});
+			printThread = std::thread([&]() {
+				{
+					std::lock_guard<std::mutex> guard(etrLock);
+					len = printProgressBar(0, 40, len, "Rendering:", ETR);
 				}
+				while (t < end && alive) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					{
+						std::lock_guard<std::mutex> guard(etrLock);
+						len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
+					}
+				}
+			});
 
-				len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
-			}
+			renderThread.join();
+			computeThread.join();
+			encodeThread.join();
+			printThread.join();
+			sampleThread.join();
 			tTime = glfwGetTime() - sTime;
-			if (alive)
-			{
-				double otherD = tTime - renderD - stepD - encodeD;
-				printf("\n");
-				printf("Type      Percent           Total         Frame\n-----------------------------------------------\n");
-				printf("Total      %6.2f  %14s  %12s\n", 100.0f, formatTime(tTime).c_str(), formatTime(tTime / fCount).c_str());
-				printf("Render     %6.2f  %14s  %12s\n", 100 * renderD / tTime, formatTime(renderD).c_str(), formatTime(renderD / fCount).c_str());
-				printf("Step       %6.2f  %14s  %12s\n", 100 * stepD / tTime, formatTime(stepD).c_str(), formatTime(stepD / fCount).c_str());
-				printf("Encode     %6.2f  %14s  %12s\n", 100 * encodeD / tTime, formatTime(encodeD).c_str(), formatTime(encodeD / fCount).c_str());
-				printf("Other      %6.2f  %14s  %12s", 100 * otherD / tTime, formatTime(otherD).c_str(), formatTime(otherD / fCount).c_str());
-			}
+			END_RANGE(render_rid);
+			END_RANGE(copy_rid);
+			glfwMakeContextCurrent(window);
 		}
 		else
 		{
-			while (t < end && alive) {
-				double time = glfwGetTime();
-				// Make sure render buffers are ready
-				fourier->readyBuffers();
-				// Begin rendering
-				START_RANGE(render_rid, "render", GREEN);
-				for (int i = 0; i < renderCount; i++)
-					renderInstances[i]->draw(t,vecHead);
-				draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-				for (int i = 0; i < renderCount; i++)
-					renderInstances[i]->postDraw();
-				copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+			std::mutex contextLock, etrLock;
+			bsem computeSem(false), encodeSem(true), drawSem(false), copySem(false);
+			std::thread renderThread, computeThread, encodeThread, sampleThread, printThread;
 
+			glfwMakeContextCurrent(nullptr);
 
-				// TODO: Step & Encode Parallel Execution
-				START_RANGE(step_rid, "step", AQUA);
-				t += fourier->increment(spf, t);
-
-				glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-				END_RANGE(render_rid);
-				START_RANGE(copy_rid, "copy", YELLOW);
-				// Update DrawBuffer after previous render finished and next increment completed
-				// increment and updateBuffers both use the same CUDA stream
-				fourier->updateBuffers(vecHead);
-				END_RANGE(step_rid);
-
-
-				// TODO: Step & Encode Parallel Execution
-				glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-				END_RANGE(copy_rid);
-				START_RANGE(encode_rid, "encode", RED);
-				for (int i = 0; i < renderCount; i++)
-					renderInstances[i]->encode();
-				END_RANGE(encode_rid);
-
-				// Estimate timing
-				d64[(ind = (ind + 1) & 0b111111)] = glfwGetTime() - time;
-				if (glfwGetTime() - pTime > 2)
-				{
-					pTime = glfwGetTime();
-					double sum = 0;
-					for (double d : d64)
-						sum += d;
-					sum /= 64 * spf;
-					ETR = formatTime((int)(sum * (end - t) / dt)) + " remaining";
+			renderThread = std::thread([&]() {
+				while (t < end && alive) {
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						for (int i = 0; i < renderCount; i++)
+							renderInstances[i]->draw(t, vecHead);
+						draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+						glfwMakeContextCurrent(nullptr);
+					}
+					encodeSem.acquire();
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						for (int i = 0; i < renderCount; i++)
+							renderInstances[i]->postDraw();
+						copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+						glfwMakeContextCurrent(nullptr);
+					}
+					drawSem.release();
+					computeSem.acquire();
 				}
+				});
+			computeThread = std::thread([&]() {
+				while (t < end && alive) {
+					t += fourier->increment(spf, t);
+					drawSem.acquire();
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+						fourier->updateBuffers(vecHead);
+						fourier->readyBuffers();
+						glfwMakeContextCurrent(nullptr);
+					}
+					computeSem.release();
+					copySem.release();
+				}
+				});
+			encodeThread = std::thread([&]() {
+				while (t < end && alive) {
+					copySem.acquire();
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+						for (int i = 0; i < renderCount; i++)
+							renderInstances[i]->encode();
+						glfwMakeContextCurrent(nullptr);
+					}
+					encodeSem.release();
+				}
+				});
+			sampleThread = std::thread([&]() {
+				double time = glfwGetTime();
+				float lastT = t;
+				while (t < end && alive) {
+					std::this_thread::sleep_for(std::chrono::seconds(1));
+					rt64[ind] = (glfwGetTime() - time);
+					st64[ind] = (t - lastT);
+					ind = (ind + 1) & 0b111111;
+					pTime = glfwGetTime();
+					double rtsum = 0;
+					double stsum = 0;
+					for (double d : rt64)
+						rtsum += d;
+					for (double d : st64)
+						stsum += d;
+					{
+						std::lock_guard<std::mutex> guard(etrLock);
+						ETR = formatTime((int)(rtsum / stsum * (end - t))) + " remaining";
+					}
+					time = glfwGetTime();
+					lastT = t;
+				}
+				});
+			printThread = std::thread([&]() {
+				{
+					std::lock_guard<std::mutex> guard(etrLock);
+					len = printProgressBar(0, 40, len, "Rendering:", ETR);
+				}
+				while (t < end && alive) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					{
+						std::lock_guard<std::mutex> guard(etrLock);
+						len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
+					}
+				}
+				});
 
-				len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
-			}
+			renderThread.join();
+			computeThread.join();
+			encodeThread.join();
+			printThread.join();
+			sampleThread.join();
 			tTime = glfwGetTime() - sTime;
+			glfwMakeContextCurrent(window);
 		}
+		
 		if (alive)
 			std::cout << std::endl << "Total Time: " << formatTime(tTime) << std::endl;
 		else

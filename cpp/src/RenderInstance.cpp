@@ -134,5 +134,5 @@ void RenderInstance::encode() {
 		encoder->pushFrame(frameraw);
 	}
 	else
-		std::cout << std::endl << this->output_name << ": Frame dropped, unable to read data" << std::endl;
+		std::cout << this->output_name << ": Frame dropped, unable to read data" << std::endl;
 }

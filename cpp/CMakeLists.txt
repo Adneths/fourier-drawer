@@ -50,6 +50,8 @@ set (HEADERS
     include/Lines.h
     include/LineStrip.h
     include/Rect.h
+    
+    include/bsem.h
 )
 
 #message(${AVCODEC_LIBRARIES} ${AVUTIL_LIBRARIES} ${AVFORMAT_LIBRARIES} ${SWSCALE_LIBRARIES})

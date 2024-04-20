@@ -71,19 +71,19 @@ group_render = parser.add_argument_group("Render Parameter")
 group_render.add_argument('-t', '--timescale', type=str, default='1', help='how many seconds video time is 1 second real time (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
 group_render.add_argument('-d', '--duration', type=str, default='2*pi', help='the duration of video time to write to file (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
 group_render.add_argument('-ss', '--start', type=str, default='0', help='the time after which writing to file begins (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
-group_render.add_argument('-tl', '--path-length', type=str, default='2.1*pi', help='the duration of video time to keep the path visible (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
+group_render.add_argument('-pl', '--path-length', type=str, default='2.1*pi', help='the duration of video time to keep the path visible (2pi video time seconds is 1 cycle). Accepts math expressions including (+,-,*,/,pi,${frames})')
 group = group_render.add_mutually_exclusive_group()
 group.add_argument('-pf', '--path-fade', action='store_true', help='whether the tail should fade with time')
 group.add_argument('-npf', '--no-path-fade', action='store_false', help='whether the tail should fade with time')
-group_render.add_argument('-tc', '--path-color', type=str, default='#ffff00', help='\'#xxxxxx\' color of the path as a hexcode')
+group_render.add_argument('-pc', '--path-color', type=str, default='#ffff00', help='\'#xxxxxx\' color of the path as a hexcode')
 group_render.add_argument('-vc', '--vector-color', type=str, default='#ffffff', help='\'#xxxxxx\' color of the vectors as a hexcode')
-group_render.add_argument('-tw', '--path-width', type=float, default=1, help='width of the path')
+group_render.add_argument('-pw', '--path-width', type=float, default=1, help='width of the path')
 group_render.add_argument('-vw', '--vector-width', type=float, default=1, help='width of the vectors')
 group_render.add_argument('-spf', '--steps-per-frame', type=str, default='1', help='one video frame is saved every this many timesteps. There are 2*pi*60/{timescale} timesteps in a render. Accepts math expressions including (+,-,*,/,pi,${frames}) casted to int')
 group_render.add_argument('--center', type=str, default='0x0', help='\'[x]x[y]\' offset from the center')
 group_render.add_argument('--screen', type=str, default=None, help='\'[width]x[height]\' dimensions of the output video (defaults to image/video dimensions, or 800x800 for svg)')
 group_render.add_argument('-z', '--zoom', type=float, default=0.9, help='percentage (as a float) of border between the path and screen')
-group_render.add_argument('-ft', '--follow-path', action='store_true', help="centers video on the head of vectors (includs offset)")
+group_render.add_argument('-fp', '--follow-path', action='store_true', help="centers video on the head of vectors (includs offset)")
 
 group_render.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='use Cuda to accelerate rendering process (use a number to specify a GPU or ? to list avaliable GPUs)')
 
@@ -125,15 +125,6 @@ INPUT = args.input
 OUTPUT = args.output
 
 
-if GPU != None:
-	if GPU[0] == '?':
-		printGPUInfo()
-		exit(0)
-	else:
-		GPU = int(GPU)
-else:
-	GPU = -1
-
 vColor = int(VECTOR_COLOR[1:], base=16)
 pColor = int(PATH_COLOR[1:], base=16)
 
@@ -161,6 +152,7 @@ none_set = not (SVG or BITMAP or VIDEO or PATH or JSON)
 if args.json or re.search('\\.(json)$', INPUT)!=None:
 	with open(INPUT, 'r') as f:
 		root = json.load(f)
+		SAVE_PATH = root.get('save_path', SAVE_PATH)
 		if root.get('input', None) != None:
 			types = {
 				's': (True, False, False, False),
@@ -178,14 +170,32 @@ if args.json or re.search('\\.(json)$', INPUT)!=None:
 			POINTS = root['input'].get('points', POINTS)
 			DIMENSION = root['input'].get('dimension', DIMENSION)
 		
-		for output in root['render']['outputs']:
-			output_name = output.get('output', 'out.mp4')
-			if not output_name.endswith('.mp4'):
-				output_name += '.mp4';
-			param = RenderParam(str.encode(output_name), int(output.get('width', 800)), int(output.get('height', 800)), int(output.get('fps', 60)))
-			for i, view in enumerate(output['views']):
-				param.views[i] = View(True, view.get('no_background', False), hex2vec(int(view.get('background_color', 0x000000)[1:], base=16)), hex2vec(int(view.get('border_color', 0x000000)[1:], base=16)), float(view.get('border_width', 0)), view.get('border_on_other_views', False), int(view.get('screen_x', 0)), int(view.get('screen_y', 0)), int(view.get('screen_width', 800)), int(view.get('screen_height', 800)), float(view.get('center_x', 0)), float(view.get('center_y', 0)), float(view.get('zoom', 1)), float(view.get('vector_width', 1)), float(view.get('path_width', 1)), hex2vec(int(view.get('vector_color', 0xffffff)[1:], base=16)), hex2vec(int(view.get('path_color', 0xffff00)[1:], base=16)), bool(view.get('follow_path', False)), bool(view.get('path_fade', True)))
-			params.append(param)
+		if root.get('render', None) != None:
+			TIMESCALE = root['render'].get('timescale', TIMESCALE)
+			DURATION = root['render'].get('duration', DURATION)
+			START = root['render'].get('start', START)
+			STEPS_PER_FRAME = root['render'].get('steps_per_frame', STEPS_PER_FRAME)
+			PATH_LENGTH = root['render'].get('path_length', PATH_LENGTH)
+			GPU = root['render'].get('gpu', GPU)
+			if root['render'].get('outputs', None) != None:
+				for output in root['render']['outputs']:
+					output_name = output.get('output', 'out.mp4')
+					if not output_name.endswith('.mp4'):
+						output_name += '.mp4';
+					param = RenderParam(str.encode(output_name), int(output.get('width', 800)), int(output.get('height', 800)), int(output.get('fps', 60)))
+					for i, view in enumerate(output['views']):
+						param.views[i] = View(True, view.get('no_background', False), hex2vec(int(view.get('background_color', 0x000000)[1:], base=16)), hex2vec(int(view.get('border_color', 0x000000)[1:], base=16)), float(view.get('border_width', 0)), view.get('border_on_other_views', False), int(view.get('screen_x', 0)), int(view.get('screen_y', 0)), int(view.get('screen_width', 800)), int(view.get('screen_height', 800)), float(view.get('center_x', 0)), float(view.get('center_y', 0)), float(view.get('zoom', 1)), float(view.get('vector_width', 1)), float(view.get('path_width', 1)), hex2vec(int(view.get('vector_color', 0xffffff)[1:], base=16)), hex2vec(int(view.get('path_color', 0xffff00)[1:], base=16)), bool(view.get('follow_path', False)), bool(view.get('path_fade', True)))
+					params.append(param)
+
+if GPU != None:
+	if GPU[0] == '?':
+		printGPUInfo()
+		exit(0)
+	else:
+		GPU = int(GPU)
+else:
+	GPU = -1
+
 if SVG or none_set and re.search('\\.(svg)$', INPUT)!=None:
 	if dims == None:
 		dims = (800,800)
@@ -231,17 +241,18 @@ if (flags & 2) != 0:
 	if frames != 1:
 		print('Input frames:', frames)
 
-if SAVE_PATH != None:
+if SAVE_PATH != None and SAVE_PATH != '':
 	data = np.append(np.asarray([frames, dims[0] + dims[1]*1j], dtype=np.complex128), path)
 	np.save(SAVE_PATH, data)
+
 
 var = {'frames': frames}
 timescale = strMath(TIMESCALE, var)
 duration = strMath(DURATION, var)
 pathLength = strMath(PATH_LENGTH, var)
-fpf = int(strMath(STEPS_PER_FRAME, var))
+spf = int(strMath(STEPS_PER_FRAME, var))
 start = strMath(START, var)
 #memLim = strToMemory(args.memory_limit)
 
 print('Loading Libraries')
-renderPath(params, path, dims, timescale/60, duration, start, pathLength, fpf, GPU, False, flags)
+renderPath(params, path, dims, timescale/60, duration, start, pathLength, spf, GPU, False, flags)
