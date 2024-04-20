@@ -4,6 +4,7 @@
 /*.json
 /*.sqlite
 /*.nsys-rep
+/*.npy
 /sample/*.mp4
 /tests/*
 !/tests/test.py
