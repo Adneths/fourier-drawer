@@ -40,6 +40,8 @@ private:
 	float* deviceBlocks;
 	void cumsum2f(float* in, float* out, size_t len);
 	void cumsum2f(float* in, float* out, size_t len, size_t offset);
+
+	size_t incrementBlockSize;
 };
 
 extern "C" DLL_API FourierSeries* __cdecl instantiate(LineStrip * vectorLine, Lines * pathLine, std::complex<float>*mags, int* freqs, size_t size, float dt, size_t cacheSize);
