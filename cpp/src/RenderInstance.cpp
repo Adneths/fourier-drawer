@@ -62,7 +62,8 @@ RenderInstance::RenderInstance(RenderParam params, GLuint solidShader, GLuint fa
 			};
 			iview.rect = new Rect((float*)vertices);
 
-			glStencilMask(1 << i);
+			glStencilMask(pview.no_background ? 1 << i : (2 << i) - 1);
+			glStencilFunc(GL_ALWAYS, 1 << i, 0xff);
 			iview.rect->draw(solidShader, iview.viewMtx, glm::vec2(0), glm::vec3(0), 1, true);
 
 			if (pview.border_on_other_views)
