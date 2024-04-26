@@ -21,131 +21,52 @@ def sort(a,b):
 	if a > b:
 		return b, a
 	return a, b
-'''
-def dist(path1, path2):
-	#print(path1, path2)
-	def dist(t):
-		print(path1.radialrange(path2.point(t))[0][0])
-		return path1.radialrange(path2.point(t))[0][0]
-	T2 = fminbound(dist, 0, 1)
-	pt2 = path2.point(T2)
-	print('Result:', T2, pt2)
-	T1Pair = path1.radialrange(pt2)[0][1:3]
-	T1 = path1.t2T(T1Pair[1],T1Pair[0])
-	pt1 = path1.point(T1)
-	print('       ', T1, pt1)
-	from svgpathtools import disvg, Line
-	disvg([path1, path2, Line(pt1, pt2)], nodes=[pt1, pt2])
-	#exit()
-	print()
-	return (abs(pt1-pt2), T1, T2)
-'''
-'''
-def minimizeDistanceForSegments(seg1, seg2):
-	def dist(t):
-		return seg1.radialrange(seg2.point(t))[0][0]
-	T2 = fminbound(dist, 0, 1)
-	pt2 = seg2.point(T2)
-	T1 = seg1.radialrange(pt2)[0][1]
-	pt1 = seg1.point(T1)
-	return (abs(pt1-pt2), T1, T2)
-def minimizeDistanceForPathToSegment(path1, seg2):
-	def dist(t):
-		return path1.radialrange(seg2.point(t))[0][0]
-	T2 = fminbound(dist, 0, 1)
-	pt2 = seg2.point(T2)
-	T1 = path1.radialrange(pt2)[0][1]
-	pt1 = path1.point(T1)
-	return (abs(pt1-pt2), T1, T2)
-def minimizeDistanceForPaths(path1, path2):
-	global_min = (np.inf, (0,0), (0,0))
-	n = len(path1) * len(path2)
-	i = 0
-	for id1, seg1 in enumerate(path1):
-		for id2, seg2 in enumerate(path2):
-			i += 1
-			print('({}/{})'.format(i,n))
-			local_min = minimizeDistanceForSegments(seg1, seg2)
-			if global_min[0] > local_min[0]:
-				global_min = (local_min[0], (id1, local_min[1]), (id2, local_min[2]))
-	return (global_min[0], path1.t2T(*global_min[1]), path2.t2T(*global_min[2]))
-'''
-def binsearch(arr, val):
-	start = 0
-	end = len(arr)
-	while start < end-1:
-		mid = (start+end)//2
-		if arr[mid] < val:
-			start = mid
-		else:
-			end = mid
-	return start-1
-def minimizeDistanceForPaths(path1, path2):
-	path2._calc_lengths()
-	path2L = np.cumsum(np.append([0],path2._lengths))
-	def dist(t):
-		#ind = binsearch(path2L, t)
-		#return path1.radialrange(path2[ind].point( (t-path2L[ind]) / path2._lengths[ind] ))[0][0]
-		return path1.radialrange(path2.point(t))[0][0]
-	T2 = basinhopping(dist, 0.5, niter=100, T=0.25, stepsize=0.5, niter_success=15, minimizer_kwargs={'bounds': [(0,1)], 'options': {'maxiter': 10}}).x[0]
-	#T2 = scipy.optimize.fminbound(dist, 0, 1)
-	pt2 = path2.point(T2)
-	T1Pair = path1.radialrange(pt2)[0][1:3]
-	T1 = path1.t2T(T1Pair[1],T1Pair[0])
-	pt1 = path1.point(T1)
-	#print('Result:', T2, pt2)
-	#print('       ', T1, pt1)
-	#from svgpathtools import disvg, Line
-	#disvg([path1, path2, Line(pt1, pt2)], nodes=[pt1, pt2])
-	##print(pt1, pt2, end=' : ')
-	return (abs(pt1-pt2), T1, T2)
-def minimizeDistanceForPoints(points1, points2):
-	def dist(idxs):
-		return abs(points1[int(idxs[0])] - points2[int(idxs[1])])
-	idx1, idx2 = basinhopping(dist, (len(points1)//2, len(points2)//2), niter=200, T=(len(points1)+len(points2))/40, stepsize=(len(points1)+len(points2))/4, niter_success=75, minimizer_kwargs={'bounds': [(0,len(points1)-1),(0,len(points2)-1)], 'options': {'maxiter': 300} }, seed=1).x
-	return (dist((idx1, idx2)), int(idx1), int(idx2))
-def mergePaths(paths, showProgress=True):
-	# From points
-	'''
+
+def generatePointsAndMergePaths(paths, showProgress=True):
+	prog = 0
+	total = len(paths)*(1+1+2) + len(paths)*(len(paths)-1)//2
+	
+	if showProgress:
+		print('\r({}/{})'.format(prog,total), end='')
 	points = [[]] * len(paths)
 	for i in range(len(paths)):
 		points[i] = pathToPoints(*paths[i])
+		prog += 1
+		if showProgress:
+			printProgressBar(prog/total, 'Processing Path')
+	
+	data = []
+	trees = []
+	for i in range(len(points)):
+		data.append(np.stack([np.real(points[i]),np.imag(points[i])],axis=1))
+		trees.append(scipy.spatial.KDTree(data[-1]))
+		prog += 1
+		if showProgress:
+			printProgressBar(prog/total, 'Processing Path')
+	
 	D = np.zeros((len(paths),len(paths),3))
-	prog = 0;
-	total = len(paths) * (len(paths)-1) // 2
-	print('\r({}/{})'.format(prog,total), end='')
 	for i in range(len(paths)):
 		for j in range(i+1,len(paths)):
-			D[i,j] = minimizeDistanceForPoints(points[i], points[j])
+			if len(points[j]) < len(points[i]):
+				res = trees[i].query(data[j])
+				ind = np.argmin(res[0])
+				D[i,j] = (res[0][ind], res[1][ind], ind)
+			else:
+				res = trees[j].query(data[i])
+				ind = np.argmin(res[0])
+				D[i,j] = (res[0][ind], ind, res[1][ind])
 			prog += 1
-			print('\r({}/{})'.format(prog,total), end='')
-	print()
+			if showProgress:
+				printProgressBar(prog/total, 'Processing Path')
 	span = scipy.sparse.csgraph.minimum_spanning_tree(D[:,:,0], overwrite=True)
 	span = [i for i in zip(*span.nonzero())]
 	
 	test = []
-	node = []
-	from svgpathtools import disvg, Line
-	for p in paths:
-		test.append(p[0])
-	for pair in span:
-		pPair = sort(*pair)
-		tPair = D[*pair][1:3]
-		pt1 = np.conjugate(points[pPair[0]][int(tPair[0])])
-		node.append(pt1)
-		test.append(pt1)
-		pt2 = np.conjugate(points[pPair[1]][int(tPair[1])])
-		node.append(pt2)
-		test.append(pt2)
-		test.append(Line(pt1, pt2))
-	disvg(test, nodes=node)
-	exit()
-	
 	intervals = [(0,0,len(points[0]))] # pathId, indStart, indEnd
 	intervalsPtr = [[] for i in range(len(paths))] # intervalsInd, indStart, indEnd
 	intervalsPtr[0].append((0,0,len(points[0])))
 	def insert(p, q):
-		pairInd = (int(D[p,q][1]),int(D[p,q][2])) if p < q else (int(D[p,q][2]),int(D[p,q][1]))
+		pairInd = (int(D[p,q][1]),int(D[p,q][2])) if p < q else (int(D[q,p][2]),int(D[q,p][1]))
 		for pt in range(len(intervalsPtr[p])):
 			intv = intervalsPtr[p][pt]
 			if pairInd[0] >= intv[1] and pairInd[0] < intv[2]:
@@ -153,6 +74,7 @@ def mergePaths(paths, showProgress=True):
 				intervals.insert(intv[0]+1, (q, 0, pairInd[1]))
 				intervals.insert(intv[0]+1, (q, pairInd[1], len(points[q])))
 				intervals[intv[0]] = (p, intv[1], pairInd[0])
+				
 				
 				for ptrs in intervalsPtr:
 					for i in range(len(ptrs)):
@@ -173,10 +95,16 @@ def mergePaths(paths, showProgress=True):
 				insert(curr, pair[1])
 				stack.append(pair[1])
 				past.append(pair[1])
+				prog += 2
+				if showProgress:
+					printProgressBar(prog/total, 'Processing Path')
 			if pair[1] == curr and not pair[0] in past:
 				insert(curr, pair[0])
 				stack.append(pair[0])
 				past.append(pair[0])
+				prog += 2
+				if showProgress:
+					printProgressBar(prog/total, 'Processing Path')
 	
 	path = np.empty(np.sum([len(pts) for pts in points]), dtype=np.complex128)
 	ind = 0
@@ -184,209 +112,17 @@ def mergePaths(paths, showProgress=True):
 		l = 0
 		for p in intervalsPtr[i]:
 			l += p[2] - p[1]
+	
 	for intv in intervals:
 		path[ind:ind+intv[2]-intv[1]] = points[intv[0]][intv[1]:intv[2]]
 		ind += intv[2]-intv[1]
-	return path
-	'''
-
-	# From paths
-	#'''
-	points = [[]] * len(paths)
-	##test = [[]] * len(paths)
-	##test2 = []
-	for i in range(len(paths)):
-		points[i] = pathToPoints(*paths[i])
-	D = np.zeros((len(paths),len(paths),3))
-	prog = 0;
-	total = len(paths) * (len(paths)-1) // 2
-	# if showProgress:
-	print('\r({}/{})'.format(prog,total), end='')
-	for i in range(len(paths)):
-		for j in range(i+1,len(paths)):
-			##print(i,j, end=' : ')
-			D[i,j] = minimizeDistanceForPaths(paths[i][0], paths[j][0])
-			##print(points[i][int(D[i,j][1]*len(points[i]))], points[j][int(D[i,j][2]*len(points[j]))], end=' : ')
-			##print(np.conjugate(paths[i][0].point(D[i,j][1])), np.conjugate(paths[j][0].point(D[i,j][2])))
-			##test2.append(np.conjugate(paths[i][0].point(D[i,j][1])))
-			##test2.append(np.conjugate(paths[j][0].point(D[i,j][2])))
-			prog += 1
-			# if showProgress:
-			print('\r({}/{})'.format(prog,total), end='')
+		
+	prog += 2
 	if showProgress:
+		printProgressBar(prog/total, 'Processing Path')
 		print()
-	span = scipy.sparse.csgraph.minimum_spanning_tree(D[:,:,0], overwrite=True)
-	span = [i for i in zip(*span.nonzero())]
 	
-	###test = []
-	###node = []
-	###from svgpathtools import disvg, Line
-	###for p in paths:
-	###	test.append(p[0])
-	###for pair in span:
-	###	pPair = minMax(*pair)
-	###	tPair = D[*pair][1:3]
-	###	pt1 = paths[pPair[0]][0].point(tPair[0])
-	###	node.append(pt1)
-	###	test.append(pt1)
-	###	pt2 = paths[pPair[1]][0].point(tPair[1])
-	###	node.append(pt2)
-	###	test.append(pt2)
-	###	test.append(Line(pt1, pt2))
-	###disvg(test, nodes=node)
-	
-	###test = []
-	intervals = [(0,0,len(points[0]))] # pathId, indStart, indEnd
-	intervalsPtr = [[] for i in range(len(paths))] # intervalsInd, indStart, indEnd
-	intervalsPtr[0].append((0,0,len(points[0])))
-	def insert(p, q):
-		pairInd = (int(D[p,q][1]*len(points[p])),int(D[p,q][2]*len(points[q]))) if p < q else (int(D[q,p][2]*len(points[p])),int(D[q,p][1]*len(points[q])))
-		###test.append(points[p][pairInd[0]])
-		###test.append(points[q][pairInd[1]])
-		##print(p,q, pairInd)
-		##print('Preinsert')
-		##print('Intervals:', intervals)
-		##print('Intveral p:', intervalsPtr[p])
-		##print('Interval q:', intervalsPtr[q])
-		for pt in range(len(intervalsPtr[p])):
-			intv = intervalsPtr[p][pt]
-			if pairInd[0] >= intv[1] and pairInd[0] < intv[2]:
-				###print(intv)
-				intervals.insert(intv[0]+1, (p, pairInd[0], intv[2]))
-				intervals.insert(intv[0]+1, (q, 0, pairInd[1]))
-				intervals.insert(intv[0]+1, (q, pairInd[1], len(points[q])))
-				intervals[intv[0]] = (p, intv[1], pairInd[0])
-				
-				
-				for ptrs in intervalsPtr:
-					for i in range(len(ptrs)):
-						if ptrs[i][0] > intv[0]:
-							ptrs[i] = (ptrs[i][0]+3, ptrs[i][1], ptrs[i][2])
-				
-				intervalsPtr[q].append((intv[0]+2, 0, pairInd[1]))
-				intervalsPtr[q].append((intv[0]+1, pairInd[1], len(points[q])))
-				intervalsPtr[p].insert(pt+1, (intv[0]+3, pairInd[0], intv[2]))
-				intervalsPtr[p][pt] = (intv[0], intv[1], pairInd[0])
-				break
-		##print('Postinsert')
-		##print('Intervals:', intervals)
-		##print('Intveral p:', intervalsPtr[p])
-		##print('Interval q:', intervalsPtr[q])
-		##print()
-	stack = [0]
-	past = [0]
-	while len(stack) > 0:
-		curr = stack.pop()
-		for pair in span:
-			if pair[0] == curr and not pair[1] in past:
-				insert(curr, pair[1])
-				stack.append(pair[1])
-				past.append(pair[1])
-			if pair[1] == curr and not pair[0] in past:
-				insert(curr, pair[0])
-				stack.append(pair[0])
-				past.append(pair[0])
-	#print(span)
-	#print(intervals)
-	#print(intervalsPtr)
-	#print([len(pts) for pts in points])
-	path = np.empty(np.sum([len(pts) for pts in points]), dtype=np.complex128)
-	ind = 0
-	for i in range(len(intervalsPtr)):
-		l = 0
-		for p in intervalsPtr[i]:
-			l += p[2] - p[1]
-		#print(l, len(points[i]))
-	
-	for intv in intervals:
-		#print(intv, ind, intv[2]-intv[1], ind+intv[2]-intv[1], len(path))
-		path[ind:ind+intv[2]-intv[1]] = points[intv[0]][intv[1]:intv[2]]
-		ind += intv[2]-intv[1]
-		
-	###import matplotlib.pyplot as plt
-	###plt.plot(np.real(path),np.imag(path),linewidth=0.2)
-	###plt.scatter(np.real(test), np.imag(test), s=2)
-	##plt.scatter(np.real(test2), np.imag(test2), s=2, c='r')
-	###plt.show()
-	###exit()
 	return path
-	#'''
-
-	'''
-	if showProgress:
-		prog = 0
-		total = len(paths)*(len(paths)+5)/2
-	
-	data = []
-	trees = []
-	for i in range(len(paths)):
-		data.append(np.stack([np.real(paths[i]),np.imag(paths[i])],axis=1))
-		trees.append(scipy.spatial.KDTree(data[-1]))
-		if showProgress:
-			prog+=2
-			printProgressBar(prog/total, 'Optimizing Path')
-	
-	A = np.zeros((len(paths),len(paths),3))
-	for i in range(len(paths)):
-		for j in range(i+1,len(paths)):
-			res = trees[i].query(data[j])
-			ind = np.argmin(res[0])
-			A[i,j] = (res[1][ind], ind, res[0][ind])
-			if showProgress:
-				prog+=1
-				printProgressBar(prog/total, 'Optimizing Path')
-	
-	span = scipy.sparse.csgraph.minimum_spanning_tree(np.square(A[:,:,2]), overwrite=True)
-	if showProgress:
-		prog+=1
-		printProgressBar(prog/total, 'Optimizing Path')
-		
-	inds = []
-	stack = [0]
-	past = [0]
-	insert = [0]
-	curr = 0
-	prev = -1
-	n = span.shape[0]
-	while len(stack) > 0:
-		if len(inds) == 0:
-			inds.append([0,0,len(paths[curr])])
-		elif not curr in insert:
-			insert.append(curr)
-			pair = A[minMax(prev,curr)][0:2]
-			if prev > curr:
-				pair = np.roll(pair,1)
-			for i in range(len(inds)):
-				if inds[i][0] == prev and inds[i][1] <= pair[0] and inds[i][2] > pair[0]:
-					inds.insert(i+1, [prev,pair[0]+1,inds[i][2]])
-					inds[i][2] = pair[0]+1
-					if pair[1] == 0:
-						inds.insert(i+1, [curr,0,len(paths[curr])])
-					else:
-						inds.insert(i+1, [curr,pair[1],len(paths[curr])])
-						inds.insert(i+2, [curr,0,pair[1]])
-			if showProgress:
-				prog+=1
-				printProgressBar(prog/total, 'Optimizing Path')
-		
-		for i in range(0,n+1):
-			if i == n:
-				stack.pop()
-			elif span[minMax(stack[-1],i)] != 0 and not i in past:
-				stack.append(i)
-				past.append(i)
-				break
-		prev = curr
-		if len(stack) > 0:
-			curr = stack[-1]
-	path = np.empty((sum([len(p) for p in paths])), dtype=np.complex128)
-	i = 0
-	for intv in inds:
-		intv = [int(i) for i in intv]
-		path[i:i+intv[2]-intv[1]] = paths[intv[0]][intv[1]:intv[2]]
-		i += intv[2]-intv[1]
-	return path
-	'''
 
 def pathToPoints(path, density=7, N=-1):
 	if N < 0:
@@ -399,7 +135,6 @@ def pathToPoints(path, density=7, N=-1):
 	t = np.linspace(0, 1, N)
 	ts = [t[np.logical_and(t>lengths[i],t<=lengths[i+1])] for i in range(len(lengths)-1)]
 	if N > 1:
-		#ts[-1] = np.append(ts[-1],1)
 		ts[0] = np.append([0], ts[0])
 	for i in range(len(ts)):
 		ts[i] = (ts[i] - lengths[i]) / (lengths[i+1] - lengths[i])
@@ -408,37 +143,22 @@ def pathToPoints(path, density=7, N=-1):
 		x = np.append(x,seg.points(param))
 	x = np.conjugate(x)
 	return x
-	'''
-	if N < 0:
-		N = int(path.length()*density)
-	elif N == 0:
-		return []
-	t = np.linspace(0, len(path), N)
-	ts = [t[(t<i)*(t>=i-1)]-i+1 for i in range(1,len(path)+1)]
-	if N > 1:
-		ts[-1] = np.append(ts[-1],1)
-	x = []
-	for seg, param in zip(path,ts):
-		x = np.append(x,seg.poly()(param))
-	x = np.conjugate(x)
-	return x
-	'''
 
 def get_namespace(element):
 	m = re.match('\\{.*\\}', element.tag)
-	if m == None:
+	if m is None:
 		return 0, 0
 	return m.group(0) if m else ''
 	
 def getTranslation(transformStr):
 	m = re.match('.*translate\\(([0-9\\.\\-]+),([0-9\\.\\-]+)\\)', transformStr)
-	if m == None:
+	if m is None:
 		return 0, 0
 	return float(m.group(1)), float(m.group(2))
 
 def getScale(transformStr):
 	m = re.match('.*scale\\(([0-9\\.\\-]+),([0-9\\.\\-]+)\\)', transformStr)
-	if m == None:
+	if m is None:
 		return 1, 1
 	return float(m.group(1)), float(m.group(2))
 	
@@ -458,14 +178,14 @@ def boundPath(path, dims):
 	s = min(dims[0]/w,dims[1]/h)
 	return path*s
 
-def svgToPath(file, base_density=7, N=-1):
+def svgToPath(file, base_density=7, N=-1, tosave=False):
 	tree = ET.parse(file)
 	root = tree.getroot()
 	namespace = get_namespace(tree.getroot())
-	paths = []
+	path_factors = []
 	tLen = svgToPathCountLen(root, (0,0), (1,1), namespace)
-	svgToPathHelper(paths, root, (0,0), (1,1), tLen, namespace, base_density, N)
-	return mergePaths(paths)
+	svgToPathHelper(path_factors, root, (0,0), (1,1), tLen, namespace, base_density, N, [] if tosave else None)
+	return generatePointsAndMergePaths(path_factors), raw_path_factors
 def svgToPathCountLen(root, tran, scal, namespace):
 	if 'transform' in root.attrib:
 		t = getTranslation(root.attrib['transform'])
@@ -480,7 +200,7 @@ def svgToPathCountLen(root, tran, scal, namespace):
 			total += path.length()*scale
 		total += svgToPathCountLen(child, tran, scal, namespace)
 	return total
-def svgToPathHelper(paths, root, tran, scal, tLen, namespace, base_density, N):
+def svgToPathHelper(path_factors, root, tran, scal, tLen, namespace, base_density, N, raw_path_factor=None):
 	if 'transform' in root.attrib:
 		t = getTranslation(root.attrib['transform'])
 		tran = (tran[0]+t[0]*scal[0],tran[1]+t[1]*scal[1])
@@ -493,22 +213,15 @@ def svgToPathHelper(paths, root, tran, scal, tLen, namespace, base_density, N):
 		if child.tag == namespace+'path':
 			path = parse_path(child.attrib['d'])
 			for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
-				paths.append((p, base_density*scale, -1 if N == -1 else int(N*(p.length()*scale+rLen%dP)/tLen)))
-				'''
-				points = pathToPoints(p, density=base_density*scale, N=-1 if N == -1 else int(N*(p.length()*scale+rLen%dP)/tLen))
+				path_factors.append((p, base_density*scale, -1 if N == -1 else int(N*(p.length()*scale+rLen%dP)/tLen)))
 				rLen += p.length()*scale
-				points = np.real(points)*scal[0] + 1j*np.imag(points)*scal[1]
-				points = points + tran[0] - 1j*tran[1]
-				if len(points) > 0:
-					paths.append(points)
-				'''
-		svgToPathHelper(paths, child, tran, scal, tLen, namespace, base_density, N)
+			if raw_path_factor != None:
+				raw_path_factor.append((child.attrib['d'], scale, tLen))
+		svgToPathHelper(path_factors, child, tran, scal, tLen, namespace, base_density, N, raw_path_factor=raw_path_factor)
 
-def imageFileToPath(file, base_density=7, N=-1):
-	return imageToPath(np.asarray(Image.open(file)), base_density, N)
-
-import time
-def imageToPath(data, base_density=7, N=-1, showProgress=True):
+def imageFileToPath(file, base_density=7, N=-1, tosave=False):
+	return imageToPath(np.asarray(Image.open(file)), base_density, N, tosave=tosave)
+def imageToPath(data, base_density=7, N=-1, tosave=False, showProgress=True):
 	if len(data.shape) == 3:
 		data = np.sum(data, axis=2)/data.shape[2]
 	bmp = potrace.Bitmap(data)
@@ -530,30 +243,26 @@ def imageToPath(data, base_density=7, N=-1, showProgress=True):
 				prev = 2
 		pStrs.append(s+'Z')
 	if len(pStrs) == 0:
+		'''
 		R = np.sqrt(data.shape[0]**2+data.shape[1]**2)/2
 		scale = 300000/(R**2*np.pi)
 		if N < 0:
 			N = 2*np.pi*R * base_density*scale
 		return np.exp(1j*np.linspace(0,2*np.pi,N))
+		'''
+		return None, None
 	else:
-		paths = []
-		path = parse_path(''.join(pStrs));
+		path_factors = []
+		path = parse_path(''.join(pStrs))
 		scale = 300000/getArea(path.bbox())
 		rLen = 0
 		tLen = path.length()
 		dP = tLen/N
+		raw_path_factor = [(''.join(pStrs), scale, tLen)] if tosave else None
 		for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
-			paths.append((p, base_density*scale, -1 if N == -1 else int(N*(p.length()*scale+rLen%dP)/tLen)))
-			'''
-			points = pathToPoints(p, density=base_density*scale, N=-1 if N == -1 else int(N*(p.length()+rLen%dP)/tLen))
+			path_factors.append((p, base_density*scale, -1 if N == -1 else int(N*(p.length()+rLen%dP)/tLen)))
 			rLen += p.length()
-			if len(points) > 0:
-				paths.append(points)
-			'''
-		start = time.perf_counter()
-		temp = mergePaths(paths,showProgress)
-		print(time.perf_counter() - start)
-		return temp
+		return generatePointsAndMergePaths(path_factors, showProgress), raw_path_factor
 
 def appendFrames(frames, b):
 	np.seterr(divide='ignore')
@@ -574,7 +283,7 @@ def appendFrames(frames, b):
 	else:
 		frames.append(np.roll(np.flip(b),i-len(b)))
 
-def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9):
+def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, tosave=False):
 	print('Preparing video')
 	output = subprocess.check_output('ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -print_format csv \"{}\"'.format(file))
 	m = re.search('stream,([0-9]+)', str(output))
@@ -584,6 +293,7 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9):
 		total = -1
 	reader = skvideo.io.vreader(file)
 	frames = []
+	raw_path_factors = [] if tosave else None
 	
 	if total != -1:
 		pT = time.time()
@@ -593,15 +303,20 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9):
 		t = time.time()
 	
 	count = 0
+	prev_path = np.zeros((0))
 	for frame in reader:
 		count+=1
-		if dims == None:
+		if dims is None:
 			dims = (frame.shape[1],frame.shape[0])
-		path = imageToPath(frame, base_density, N, False)
+		path, raw_path = imageToPath(frame, base_density, N, tosave=tosave, showProgress=False)
 		if len(frames) == 0:
-			frames.append(path)
+			frames.append(prev_path if path==None else path.copy())
 		else:
-			appendFrames(frames,path)
+			appendFrames(frames, prev_path if path==None else path)
+		if not path is None:
+			prev_path = path
+		if tosave:
+			raw_path_factors.append(raw_path)
 		
 		if total != -1:
 			d60[tail] = time.time()-t
@@ -620,13 +335,66 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9):
 			print('\rProcessing frame {}'.format(len(frames)), end = '')
 		if total != -1:
 			t = time.time()
-		
-	printProgressBar(1, 'Tracing frames', '| 00:00 remaining         ')
+	
+	prog = 0
+	total = len(frames)
 	l = sum([len(f) for f in frames])
 	a = np.empty((l), dtype=np.complex128)
 	i = 0
 	for frame in frames:
+		printProgressBar(prog/total, 'Merging frames', '|                           ')
+		prog += 1
 		a[i:i+len(frame)] = frame
 		i += len(frame)
-	a = boundPath(a, (dims[0],dims[1]))
-	return (a, dims, count)
+	printProgressBar(1, 'Merging frames', '|                           ')
+	print()
+	#a = boundPath(a, (dims[0],dims[1]))
+	return a, dims, count, raw_path_factors
+
+def resamplePath(raw_path, density=7, N=-1, types=(True, False, False, False), showProgress=True):
+	print('Resampling Path')
+	frames = []
+	prev_path = None
+	for idx, frame in enumerate(raw_path):
+		if frame is None and prev_path is None:
+			print('Unable to resample frame {}, skipping'.format(idx))
+			continue
+		if not frame is None:
+			path_factors = []
+			for raw_path_factor in frame:
+				path = parse_path(raw_path_factor[0])
+				scale = raw_path_factor[1]
+				tLen = raw_path_factor[2]
+				rLen = 0
+				dP = tLen/N
+				for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
+					path_factors.append((p, base_density*scale, -1 if N == -1 else int(N*(p.length()+rLen%dP)/tLen)))
+					rLen += p.length() * scale if types[0] else p.length()
+			path = generatePointsAndMergePaths(path_factors, showProgress and not types[3])
+		else
+			path = None
+		
+		if len(frames) == 0:
+			frames.append(prev_path if path==None else path.copy())
+		else:
+			appendFrames(frames, prev_path if path==None else path)
+		if not path is None:
+			prev_path = path
+	
+	if len(frames) > 1:
+		prog = 0
+		total = len(frames)
+		l = sum([len(f) for f in frames])
+		a = np.empty((l), dtype=np.complex128)
+		i = 0
+		for frame in frames:
+			printProgressBar(prog/total, 'Merging frames', '|                           ')
+			prog += 1
+			a[i:i+len(frame)] = frame
+			i += len(frame)
+		printProgressBar(1, 'Merging frames', '|                           ')
+		print()
+		return a
+	else
+		return frames[0]
+	
