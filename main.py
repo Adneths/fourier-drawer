@@ -197,35 +197,66 @@ else:
 	GPU = -1
 
 if SVG or none_set and re.search('\\.(svg)$', INPUT)!=None:
-	if dims == None:
+	SVG, BITMAP, VIDEO, PATH = (True, False, False, False)
+	if dims is None:
 		dims = (800,800)
 	print('Tracing image')
-	path = boundPath(centerPath(svgToPath(INPUT, abs(DENSITY), POINTS)), (dims[0]/min(dims),dims[1]/min(dims)))
+	path, raw_path = svgToPath(INPUT, abs(DENSITY), POINTS, SAVE_PATH!=None)
+	raw_path = [raw_path]
+	path = boundPath(centerPath(path), (dims[0]/min(dims),dims[1]/min(dims)))
 elif BITMAP or none_set and re.search('\\.(bmp|png|jpg|jpeg)$', INPUT)!=None:
-	if dims == None:
+	SVG, BITMAP, VIDEO, PATH = (False, True, False, False)
+	if dims is None:
 		size = Image.open(INPUT).size
 		dims = (int(size[0]/10)*10,int(size[1]/10)*10)
 	print('Tracing image')
-	path = boundPath(centerPath(imageFileToPath(INPUT, abs(DENSITY), POINTS)), (dims[0]/min(dims),dims[1]/min(dims)))
+	path, raw_path = imageFileToPath(INPUT, abs(DENSITY), POINTS, SAVE_PATH!=None)
+	raw_path = [raw_path]
+	if path is None:
+		print('Error: Unable to trace image')
+		exit()
+	path = boundPath(centerPath(path), (dims[0]/min(dims),dims[1]/min(dims)))
 elif VIDEO or none_set and re.search('\\.(mp4|avi|mov)$', INPUT)!=None:
+	SVG, BITMAP, VIDEO, PATH = (False, False, True, False)
 	print('Tracing video')
-	path, dims, frames = videoToPath(INPUT, abs(DENSITY), POINTS, dims)
+	path, dims, frames, raw_path = videoToPath(INPUT, abs(DENSITY), POINTS, dims, tosave=SAVE_PATH!=None)
 	path = boundPath(centerPath(path), (dims[0]/min(dims),dims[1]/min(dims)))
 elif PATH or none_set and re.search('\\.(npy)$', INPUT)!=None:
-	print('Reading path' ,end='')
-	data = np.load(INPUT)
-	path = data[2:]
-	dims = (int(np.real(data[1])),int(np.imag(data[1])))
-	frames = int(np.real(data[0]))
+	SVG, BITMAP, VIDEO, PATH = (False, False, False, True)
+	print('Reading path')
+	obj = np.load(INPUT, allow_pickle=True)
+	if obj.dtype == 'O':
+		version = obj[-1]
+		if version == 1:
+			path = obj[2]
+			dims = (int(np.real(obj[1])),int(np.imag(obj[1]))) if dims is None else dims
+			frames = int(np.real(obj[0]))
+			iargs = obj[3]
+			if iargs[1] != DENSITY or iargs[2] != POINTS:
+				path = resamplePath(obj[4], DENSITY, POINTS, iargs[0], old=(iargs[1], iargs[2]))
+				path = boundPath(centerPath(path), (dims[0]/min(dims),dims[1]/min(dims)))
+				obj[1] = dims[0] + dims[1]*1j
+				obj[2] = path
+				obj[3] = (iargs[0], abs(DENSITY), POINTS)
+		else:
+			print('Error: Unknown file version')
+			exit()
+	else:
+		# Legacy support
+		data = np.load(INPUT)
+		path = data[2:]
+		dims = (int(np.real(data[1])),int(np.imag(data[1])))
+		frames = int(np.real(data[0]))
+		obj = None
 else:
 	print('Error: Unable to deduce input file type')
 	exit()
-if screen == None:
+if screen is None:
 	screen = dims
 	
 if len(params) == 0:
 	if not OUTPUT.endswith('.mp4'):
-		OUTPUT += '.mp4';
+		OUTPUT += '.mp4'
 	param = RenderParam(str.encode(OUTPUT), screen[0], screen[1], args.fps)
 	param.views[0] = View(True, False, hex2vec(0x000000), hex2vec(0x000000), 0, False, 0, 0, screen[0], screen[1], center[0], center[1], ZOOM, args.vector_width, args.path_width, hex2vec(vColor), hex2vec(pColor), args.follow_path, args.path_fade or args.no_path_fade)
 	params.append(param)
@@ -234,7 +265,6 @@ flags = infoBits(args.info)
 if args.profile:
 	flags |= 16
 
-print()
 if (flags & 2) != 0:
 	print('Number of points:', len(path))
 	print('Output dimensions:', dims)
@@ -242,7 +272,16 @@ if (flags & 2) != 0:
 		print('Input frames:', frames)
 
 if SAVE_PATH != None and SAVE_PATH != '':
-	data = np.append(np.asarray([frames, dims[0] + dims[1]*1j], dtype=np.complex128), path)
+	if PATH and not obj is None:
+		data = obj
+	else:
+		data = np.empty((6), dtype='O')
+		data[0] = frames
+		data[1] = dims[0] + dims[1]*1j
+		data[2] = path
+		data[3] = ((SVG, BITMAP, VIDEO, PATH), abs(DENSITY), POINTS)
+		data[4] = raw_path
+		data[5] = 1
 	np.save(SAVE_PATH, data)
 
 

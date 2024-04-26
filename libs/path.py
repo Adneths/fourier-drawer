@@ -3,7 +3,6 @@ import numpy
 numpy.float = np.float64
 numpy.int = numpy.int_
 import scipy
-from scipy.optimize import basinhopping
 
 from svgpathtools import parse_path
 import xml.etree.ElementTree as ET
@@ -15,7 +14,7 @@ import subprocess
 import time
 import skvideo.io
 
-from .util import printProgressBar
+from .util import printProgressBar, EstimateTimeRemaining
 
 def sort(a,b):
 	if a > b:
@@ -34,6 +33,8 @@ def generatePointsAndMergePaths(paths, showProgress=True):
 		prog += 1
 		if showProgress:
 			printProgressBar(prog/total, 'Processing Path')
+	points = [v for v in points if len(v) > 0]
+	total = len(paths) + len(points)*3 + len(points)*(len(points)-1)//2
 	
 	data = []
 	trees = []
@@ -44,9 +45,9 @@ def generatePointsAndMergePaths(paths, showProgress=True):
 		if showProgress:
 			printProgressBar(prog/total, 'Processing Path')
 	
-	D = np.zeros((len(paths),len(paths),3))
-	for i in range(len(paths)):
-		for j in range(i+1,len(paths)):
+	D = np.zeros((len(points),len(points),3))
+	for i in range(len(points)):
+		for j in range(i+1,len(points)):
 			if len(points[j]) < len(points[i]):
 				res = trees[i].query(data[j])
 				ind = np.argmin(res[0])
@@ -63,7 +64,7 @@ def generatePointsAndMergePaths(paths, showProgress=True):
 	
 	test = []
 	intervals = [(0,0,len(points[0]))] # pathId, indStart, indEnd
-	intervalsPtr = [[] for i in range(len(paths))] # intervalsInd, indStart, indEnd
+	intervalsPtr = [[] for i in range(len(points))] # intervalsInd, indStart, indEnd
 	intervalsPtr[0].append((0,0,len(points[0])))
 	def insert(p, q):
 		pairInd = (int(D[p,q][1]),int(D[p,q][2])) if p < q else (int(D[q,p][2]),int(D[q,p][1]))
@@ -287,7 +288,7 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, tosave=False)
 	print('Preparing video')
 	output = subprocess.check_output('ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -print_format csv \"{}\"'.format(file))
 	m = re.search('stream,([0-9]+)', str(output))
-	if m != None:
+	if not m is None:
 		total = int(m.group(1))
 	else:
 		total = -1
@@ -295,12 +296,7 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, tosave=False)
 	frames = []
 	raw_path_factors = [] if tosave else None
 	
-	if total != -1:
-		pT = time.time()
-		s = 'XX:XX remaining'
-		d60 = [0]*60
-		tail = 0
-		t = time.time()
+	ETR = None if total == -1 else EstimateTimeRemaining()
 	
 	count = 0
 	prev_path = np.zeros((0))
@@ -310,31 +306,23 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, tosave=False)
 			dims = (frame.shape[1],frame.shape[0])
 		path, raw_path = imageToPath(frame, base_density, N, tosave=tosave, showProgress=False)
 		if len(frames) == 0:
-			frames.append(prev_path if path==None else path.copy())
+			frames.append(prev_path if path is None else path.copy())
 		else:
-			appendFrames(frames, prev_path if path==None else path)
+			appendFrames(frames, prev_path if path is None else path)
 		if not path is None:
 			prev_path = path
 		if tosave:
 			raw_path_factors.append(raw_path)
 		
-		if total != -1:
-			d60[tail] = time.time()-t
-			tail = (tail+1)%60
-			if time.time()-pT > 2:
-				pT = time.time()
-				s = (total-len(frames))*sum(d60)/60
-				if s < 3600:
-					s = '| {:02}:{:02.0f} remaining         '.format(int((s%3600)/60),s%60)
-				else:
-					s = '| {}:{:02}:{:02.0f} remaining         '.format(int(s/3600),int((s%3600)/60),s%60)
+		if not ETR is None:
+			ETR.sample(total-len(frames))
 		
-		if total > 0:
-			printProgressBar(len(frames)/total, 'Tracing frames', s)
+		if ETR is None:
+			print('\rTracing frame {}'.format(len(frames)), end = '')
 		else:
-			print('\rProcessing frame {}'.format(len(frames)), end = '')
-		if total != -1:
-			t = time.time()
+			printProgressBar(len(frames)/total, 'Tracing frames', '| {} remaining         '.format(ETR.formatted_seconds_remaining()))
+	printProgressBar(len(frames)/total, 'Tracing frames', '| 00:00 remaining         ')
+	print()
 	
 	prog = 0
 	total = len(frames)
@@ -351,10 +339,12 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, tosave=False)
 	#a = boundPath(a, (dims[0],dims[1]))
 	return a, dims, count, raw_path_factors
 
-def resamplePath(raw_path, density=7, N=-1, types=(True, False, False, False), showProgress=True):
-	print('Resampling Path')
+def resamplePath(raw_path, density=7, N=-1, types=(True, False, False, False), old=(-1,-1), showProgress=True):
+	print('Resampling Path: ({}, {}) -> ({}, {})'.format(*old, density, N))
 	frames = []
 	prev_path = None
+	total = len(raw_path)
+	ETR = None if total < 2 else EstimateTimeRemaining()
 	for idx, frame in enumerate(raw_path):
 		if frame is None and prev_path is None:
 			print('Unable to resample frame {}, skipping'.format(idx))
@@ -368,18 +358,26 @@ def resamplePath(raw_path, density=7, N=-1, types=(True, False, False, False), s
 				rLen = 0
 				dP = tLen/N
 				for p in ([path] if path.iscontinuous() else path.continuous_subpaths()):
-					path_factors.append((p, base_density*scale, -1 if N == -1 else int(N*(p.length()+rLen%dP)/tLen)))
+					path_factors.append((p, density*scale, -1 if N == -1 else int(N*(p.length()+rLen%dP)/tLen)))
 					rLen += p.length() * scale if types[0] else p.length()
-			path = generatePointsAndMergePaths(path_factors, showProgress and not types[3])
-		else
+			path = generatePointsAndMergePaths(path_factors, showProgress and not types[2])
+		else:
 			path = None
 		
 		if len(frames) == 0:
-			frames.append(prev_path if path==None else path.copy())
+			frames.append(prev_path if path is None else path.copy())
 		else:
-			appendFrames(frames, prev_path if path==None else path)
+			appendFrames(frames, prev_path if path is None else path)
 		if not path is None:
 			prev_path = path
+		
+		if not ETR is None:
+			ETR.sample(total-idx)
+		if types[2]:
+			printProgressBar(idx/total, 'Tracing frames', '| {} remaining         '.format(ETR.formatted_seconds_remaining()))
+	if types[2]:
+		printProgressBar(1, 'Tracing frames', '| 00:00 remaining         ')
+	print()
 	
 	if len(frames) > 1:
 		prog = 0
@@ -395,6 +393,6 @@ def resamplePath(raw_path, density=7, N=-1, types=(True, False, False, False), s
 		printProgressBar(1, 'Merging frames', '|                           ')
 		print()
 		return a
-	else
+	else:
 		return frames[0]
 	
