@@ -76,6 +76,8 @@ std::string formatTime(double seconds)
 }
 
 volatile bool alive = true;
+volatile bool done = false;
+volatile size_t frame = 0;
 void keyboard_interrupt(int signum) {
 	alive = false;
 }
@@ -337,7 +339,8 @@ extern "C" {
 			cudaEventCreate(&stepEvent);
 #endif
 			renderThread = std::thread([&]() {
-				while (t < end && alive) {
+				size_t count = 0;
+				while ((!done || count++ < frame) && alive) {
 					END_RANGE(copy_rid);
 					{
 						std::lock_guard<std::mutex> guard(contextLock);
@@ -365,6 +368,7 @@ extern "C" {
 				while (t < end && alive) {
 					START_RANGE(step_rid, "step", AQUA);
 					t += fourier->increment(spf, t);
+					frame++;
 #if COMPILE_CUDA
 					cudaEventRecord(stepEvent, 0);
 					cudaStreamAddCallback(0, [](cudaStream_t stream, cudaError_t status, void* userData) {
@@ -387,9 +391,11 @@ extern "C" {
 					computeSem.release();
 					copySem.release();
 				}
+				done = true;
 			});
 			encodeThread = std::thread([&]() {
-				while (t < end && alive) {
+				size_t count = 0;
+				while ((!done || count++ < frame) && alive) {
 					copySem.acquire();
 					{
 						std::lock_guard<std::mutex> guard(contextLock);
@@ -408,7 +414,7 @@ extern "C" {
 			sampleThread = std::thread([&]() {
 				double time = glfwGetTime();
 				float lastT = t;
-				while (t < end && alive) {
+				while (!done && alive) {
 					std::this_thread::sleep_for(std::chrono::seconds(1));
 					rt64[ind] = (glfwGetTime() - time);
 					st64[ind] = (t - lastT);
@@ -433,7 +439,7 @@ extern "C" {
 					std::lock_guard<std::mutex> guard(etrLock);
 					len = printProgressBar(0, 40, len, "Rendering:", ETR);
 				}
-				while (t < end && alive) {
+				while (!done && alive) {
 					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					{
 						std::lock_guard<std::mutex> guard(etrLock);
