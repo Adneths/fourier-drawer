@@ -579,13 +579,13 @@ int _render(T* data, size_t size, int width, int height, T dt, T duration, T sta
 		printThread = std::thread([&]() {
 			{
 				std::lock_guard<std::mutex> guard(etrLock);
-				//len = printProgressBar<T>(0, 40, len, "Rendering:", ETR);
+				len = printProgressBar<T>(0, 40, len, "Rendering:", ETR);
 			}
 			while (t < end && alive) {
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				{
 					std::lock_guard<std::mutex> guard(etrLock);
-					//len = printProgressBar<T>((t - start) / duration, 40, len, "Rendering:", ETR);
+					len = printProgressBar<T>((t - start) / duration, 40, len, "Rendering:", ETR);
 				}
 			}
 			});
