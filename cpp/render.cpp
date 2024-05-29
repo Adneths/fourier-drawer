@@ -411,16 +411,18 @@ int _render(T* data, size_t size, int width, int height, T dt, T duration, T sta
 #else
 				END_RANGE(step_rid);
 #endif
-				drawSem.acquire();
-				{
-					std::lock_guard<std::mutex> guard(contextLock);
-					glfwMakeContextCurrent(window);
-					glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-					END_RANGE(render_rid);
-					START_RANGE(copy_rid, "copy", YELLOW);
-					fourier->updateBuffers(vecHead);
-					fourier->readyBuffers();
-					glfwMakeContextCurrent(nullptr);
+				if (t < end) {
+					drawSem.acquire();
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+						END_RANGE(render_rid);
+						START_RANGE(copy_rid, "copy", YELLOW);
+						fourier->updateBuffers(vecHead);
+						fourier->readyBuffers();
+						glfwMakeContextCurrent(nullptr);
+					}
 				}
 				computeSem.release();
 				copySem.release();
@@ -481,6 +483,11 @@ int _render(T* data, size_t size, int width, int height, T dt, T duration, T sta
 				}
 			}
 			});
+		SetThreadName(&renderThread, "render_thread");
+		SetThreadName(&computeThread, "compute_thread");
+		SetThreadName(&encodeThread, "encode_thread");
+		SetThreadName(&printThread, "print_thread");
+		SetThreadName(&sampleThread, "sample_thread");
 
 		renderThread.join();
 		computeThread.join();
@@ -526,14 +533,16 @@ int _render(T* data, size_t size, int width, int height, T dt, T duration, T sta
 		computeThread = std::thread([&]() {
 			while (t < end && alive) {
 				t += fourier->increment(spf, t);
-				drawSem.acquire();
-				{
-					std::lock_guard<std::mutex> guard(contextLock);
-					glfwMakeContextCurrent(window);
-					glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-					fourier->updateBuffers(vecHead);
-					fourier->readyBuffers();
-					glfwMakeContextCurrent(nullptr);
+				if (t < end) {
+					drawSem.acquire();
+					{
+						std::lock_guard<std::mutex> guard(contextLock);
+						glfwMakeContextCurrent(window);
+						glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+						fourier->updateBuffers(vecHead);
+						fourier->readyBuffers();
+						glfwMakeContextCurrent(nullptr);
+					}
 				}
 				computeSem.release();
 				copySem.release();
@@ -589,6 +598,11 @@ int _render(T* data, size_t size, int width, int height, T dt, T duration, T sta
 				}
 			}
 			});
+		SetThreadName(&renderThread, "render_thread");
+		SetThreadName(&computeThread, "compute_thread");
+		SetThreadName(&encodeThread, "encode_thread");
+		SetThreadName(&printThread, "print_thread");
+		SetThreadName(&sampleThread, "sample_thread");
 
 		renderThread.join();
 		computeThread.join();

@@ -413,14 +413,6 @@ void CudaFourierSeries<T, T2, T3>::updateBuffers(vec2<T>* vecHeadPtr)
 
 	if (vecHeadPtr != nullptr)
 		cudaMemcpy(vecHeadPtr, devicePathCache + (cacheSize - 1) * 2, sizeof(T) * 2, cudaMemcpyDeviceToHost);
-
-	
-	/*glBindBuffer(GL_ARRAY_BUFFER, pathLine->getBuffer());
-	double* ptr2 = (double*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY);
-	for (int i = 0; i < pathLine->getCount() * (pathLine->isTimestamped() ? 3ull : 2ull) * 2; i++)
-		std::cout << ptr2[i] << " ";
-	std::cout << std::endl << std::endl << std::endl;
-	glUnmapBuffer(GL_ARRAY_BUFFER);*/
 }
 
 template <typename T, typename T2, typename T3>
