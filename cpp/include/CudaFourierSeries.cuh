@@ -12,36 +12,38 @@
 #include <device_launch_parameters.h>
 #include <cuda_gl_interop.h>
 
+using namespace math;
 
-class CudaFourierSeries : public FourierSeries {
+template <typename T, typename T2, typename T3>
+class CudaFourierSeries : public FourierSeries<T> {
 public:
-	CudaFourierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize, int gpu, bool info);
+	CudaFourierSeries(LineStrip<T>* vectorLine, Lines<T>* pathLine, std::complex<T>* mags, int* freqs, size_t size, T dt, size_t cacheSize, int gpu, bool info);
 	~CudaFourierSeries();
-	float increment(size_t count, float time) override;
-	void updateBuffers(glm::vec2* vecHeadPtr = nullptr) override;
+	T increment(size_t count, T time) override;
+	void updateBuffers(vec2<T>* vecHeadPtr = nullptr) override;
 	void readyBuffers() override;
-	void resetTrail(glm::vec2* vecHeadPtr = nullptr) override;
-	void init(float time) override;
+	void resetTrail(vec2<T>* vecHeadPtr = nullptr) override;
+	void init(T time) override;
 private:
 	bool invalid = false;
 
 	size_t head;
 	size_t cacheSize, size;
-	float dt, time;
-	LineStrip* vectorLine;
-	Lines* pathLine;
+	T dt, time;
+	LineStrip<T>* vectorLine;
+	Lines<T>* pathLine;
 
 	cudaGraphicsResource *vectorPtr, *pathPtr;
-	float *deviceMags, *devicePathCache;
+	T *deviceMags, *devicePathCache;
 	int* deviceFreqs;
 
 	size_t lineWidth, pathBufferSize;
 
-	float* deviceBlocks;
-	void cumsum2f(float* in, float* out, size_t len);
-	void cumsum2f(float* in, float* out, size_t len, size_t offset);
+	T* deviceBlocks;
+	void cumsum2f(T* in, T* out, size_t len);
+	void cumsum2f(T* in, T* out, size_t len, size_t offset);
 
 	size_t incrementBlockSize;
 };
 
-extern "C" DLL_API FourierSeries* __cdecl instantiate(LineStrip * vectorLine, Lines * pathLine, std::complex<float>*mags, int* freqs, size_t size, float dt, size_t cacheSize);
+//extern "C" DLL_API FourierSeries* __cdecl instantiate(LineStrip * vectorLine, Lines * pathLine, std::complex<float>*mags, int* freqs, size_t size, float dt, size_t cacheSize);

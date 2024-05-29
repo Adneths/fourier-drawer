@@ -27,10 +27,23 @@
 #if COMPILE_CUDA
 #include <cuda_runtime.h>
 #include "CudaFourierSeries.cuh"
+template<typename T>
+struct TypeMap;
+template<>
+struct TypeMap<float> {
+	using pairtype = float2;
+	using tripletype = float3;
+};
+template<>
+struct TypeMap<double> {
+	using pairtype = double2;
+	using tripletype = double3;
+};
 #else
 #include "NpFourierSeries.h"
 #endif
 
+using namespace math;
 
 
 //https://stackoverflow.com/a/26221725
@@ -83,7 +96,8 @@ void keyboard_interrupt(int signum) {
 }
 
 char buf[256];
-int printProgressBar(float part, int barLength = 40, int minLength = 0, std::string prefix = "", std::string suffix = "")
+template <typename T>
+int printProgressBar(T part, int barLength = 40, int minLength = 0, std::string prefix = "", std::string suffix = "")
 {
 	std::string bar = std::string((int)(barLength * part), '*');
 	bar += std::string(barLength - bar.length(), ' ');
@@ -136,6 +150,7 @@ void APIENTRY glDebugOutput(GLenum source,
 
 	std::cout << "---------------" << std::endl;
 	std::cout << "Debug message (" << id << "): " << message << std::endl;
+	exit(-1);
 
 	switch (source)
 	{
@@ -185,409 +200,441 @@ GLFWwindow* createSharedWindow(GLFWwindow* mainWindow) {
 }
 
 #define TIMEOUT 30000000000ul
+template <typename T>
+int _render(T* data, size_t size, int width, int height, T dt, T duration, T start,
+	T pathLength, RenderParam* renders, size_t renderCount, int spf, int gpu, bool show, int flags)
+{
+	std::cout << "Initializing Scene" << std::endl;
+	signal(SIGINT, keyboard_interrupt);
+
+	if (!glfwInit()) {
+		std::cerr << "Failed to initialize GLFW" << std::endl;
+		return -1;
+	}
+
+	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	GLFWwindow* window = glfwCreateWindow(1, 1, "Fourier", NULL, NULL);
+	if (!window) {
+		std::cerr << "Failed to open GLFW window." << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+
+	glfwMakeContextCurrent(window);
+	glewInit();
+	glfwSwapInterval(1);
+
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_FALSE);
+	if (flags & DEBUG_FLAG)
+	{
+		glEnable(GL_DEBUG_OUTPUT);
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+		glDebugMessageCallback(glDebugOutput, nullptr);
+		glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_ERROR, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+	}
+	else if (flags & WARN_FLAG)
+	{
+		glEnable(GL_DEBUG_OUTPUT);
+		glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+	}
+
+	bool hasFade = false;
+	for (int i = 0; i < renderCount; i++)
+		for (int j = 0; j < 8; j++)
+			if (renders[i].views[i].valid && renders[i].views[j].path_fade)
+				hasFade = true;
+
+	const char* vertex_shader_path = "./libs/shaders/2d.vert";
+	const char* solid_fragment_shader_path = "./libs/shaders/solid.frag";
+	const char* fade_fragment_shader_path = "./libs/shaders/fade.frag";
+	if (std::is_same_v<T, double>) {
+		vertex_shader_path = "./libs/shaders/2d_double.vert";
+		fade_fragment_shader_path = "./libs/shaders/fade_double.frag";
+	}
+
+	GLuint solidShader = LoadShaders(vertex_shader_path, solid_fragment_shader_path, flags & DEBUG_FLAG);
+	GLuint fadeShader = hasFade ? LoadShaders(vertex_shader_path, fade_fragment_shader_path, flags & DEBUG_FLAG) : 0;
+	if (!solidShader || (hasFade && !fadeShader)) {
+		std::cerr << "Failed to initialize shader program" << std::endl;
+		glfwDestroyWindow(window);
+		glfwTerminate();
+		return -1;
+	}
+	GLuint fillBufferShader = LoadShaders("./libs/shaders/fill_buffer.comp", flags & DEBUG_FLAG);
+	if (!fillBufferShader) {
+		std::cerr << "Failed to initialize compute shader program" << std::endl;
+		glfwDestroyWindow(window);
+		glfwTerminate();
+		return -1;
+	}
+
+	size_t vectorSize = size / 2;
+	size_t pathSize = (size_t)(pathLength / dt);
+
+	if (hasFade)
+	{
+		glUseProgram(fadeShader);
+		glutil::glUniform1<T>(glGetUniformLocation(fadeShader, "pathLength"), pathLength);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	}
+
+	LineStrip<T>* vector = new LineStrip<T>(vec2<T>(0, 0), vectorSize);
+	Lines<T>* path = new Lines<T>(vec2<T>(0, 0), pathSize, hasFade, fillBufferShader);
+
+	nc::NdArray<std::complex<T>> mags((std::complex<T>*)data, vectorSize);
+	nc::NdArray<int> freqs = nc::append(nc::arange(0, (int)(vectorSize / 2)), nc::arange(-(int)((vectorSize + 1) / 2), 0));
+	nc::NdArray<nc::uint32> inds = nc::argsort(-nc::abs(mags));
+	mags = mags[inds];
+	freqs = freqs[inds];
+
+#if COMPILE_CUDA
+	using T2 = typename TypeMap<T>::pairtype;
+	using T3 = typename TypeMap<T>::tripletype;
+	FourierSeries<T>* fourier = new CudaFourierSeries<T,T2,T3>(vector, path, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, spf, gpu, flags & GPU_FLAG);
+#else
+	FourierSeries<T>* fourier = new NpFourierSeries<T>(vector, path, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, spf);
+#endif
+	if (!fourier->valid())
+	{
+		alive = false;
+	}
+
+	glEnable(GL_STENCIL_TEST);
+	glDisable(GL_DEPTH_TEST);
+	std::set<std::string> names;
+	for (int i = 0; i < renderCount; i++)
+	{
+		std::string n = renders[i].output_name;
+		std::string nn = n;
+		int k = 0;
+		while (names.find(nn) != names.end())
+		{
+			int ind = n.find_last_of('.');
+			nn = n.substr(0, ind) + std::to_string(++k) + n.substr(ind);
+		}
+		names.insert(nn);
+		char* nnp = (char*)malloc(sizeof(char) * (nn.size() + 1));
+		strcpy(nnp, nn.c_str());
+		renders[i].output_name = nnp;
+	}
+
+	std::vector<RenderInstance<T>*> renderInstances;
+	for (int i = 0; i < renderCount; i++)
+	{
+		if (flags & RENDER_FLAG)
+			std::cout << "Instance" << std::to_string(i + 1) << ": " << renders[i] << std::endl;
+		renderInstances.push_back(new RenderInstance<T>(renders[i], solidShader, fadeShader, vector, path, width, height));
+	}
+
+	glClearColor(0, 0, 0, 1);
+	T t = start;
+	T end = start + duration;
+	if (t > 0)
+	{
+		fourier->init(t);
+		fourier->updateBuffers();
+	}
+
+	std::string ETR = "XX:XX remaining";
+	int ind = 0;
+	double sTime = glfwGetTime(), tTime = -1;
+	double pTime = glfwGetTime();
+	double rt64[64] = { 0 };
+	double st64[64] = { 0 };
+	int len = 0;
+	GLsync copy, step, draw;
+	GLsync* draws = (GLsync*)malloc(sizeof(GLsync) * renderCount);
+	vec2<T>* vecHead = nullptr;
+	for (int i = 0; i < renderCount; i++)
+		for (int j = 0; j < 8; j++)
+			if (renders[i].views[i].valid && renders[i].views[j].follow_path)
+			{
+				vecHead = new vec2<T>(0, 0);
+				break;
+			}
+	fourier->resetTrail(vecHead);
+	if (flags & PROFILE_FLAG)
+	{
+		std::mutex contextLock, etrLock;
+		bsem computeSem(false), encodeSem(true), drawSem(false), copySem(false);
+		std::thread renderThread, computeThread, encodeThread, sampleThread, printThread;
+
+		MAKE_RANGE(render_rid);
+		MAKE_RANGE(step_rid);
+		MAKE_RANGE(encode_rid);
+		MAKE_RANGE(copy_rid);
+		glfwMakeContextCurrent(nullptr);
+
+#if COMPILE_CUDA
+		cudaEvent_t stepEvent;
+		cudaEventCreate(&stepEvent);
+#endif
+		renderThread = std::thread([&]() {
+			size_t count = 0;
+			while ((!done || count++ < frame) && alive) {
+				END_RANGE(copy_rid);
+				{
+					std::lock_guard<std::mutex> guard(contextLock);
+					glfwMakeContextCurrent(window);
+					START_RANGE(render_rid, "render", GREEN);
+					for (int i = 0; i < renderCount; i++)
+						renderInstances[i]->draw(t, vecHead);
+					draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+					glfwMakeContextCurrent(nullptr);
+				}
+				encodeSem.acquire();
+				{
+					std::lock_guard<std::mutex> guard(contextLock);
+					glfwMakeContextCurrent(window);
+					for (int i = 0; i < renderCount; i++)
+						renderInstances[i]->postDraw();
+					copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+					glfwMakeContextCurrent(nullptr);
+				}
+				drawSem.release();
+				computeSem.acquire();
+			}
+			});
+		computeThread = std::thread([&]() {
+			while (t < end && alive) {
+				START_RANGE(step_rid, "step", AQUA);
+				t += fourier->increment(spf, t);
+				frame++;
+#if COMPILE_CUDA
+				cudaEventRecord(stepEvent, 0);
+				cudaStreamAddCallback(0, [](cudaStream_t stream, cudaError_t status, void* userData) {
+					END_RANGE(*((nvtxRangeId_t*)userData));
+					}, &step_rid, 0);
+#else
+				END_RANGE(step_rid);
+#endif
+				drawSem.acquire();
+				{
+					std::lock_guard<std::mutex> guard(contextLock);
+					glfwMakeContextCurrent(window);
+					glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+					END_RANGE(render_rid);
+					START_RANGE(copy_rid, "copy", YELLOW);
+					fourier->updateBuffers(vecHead);
+					fourier->readyBuffers();
+					glfwMakeContextCurrent(nullptr);
+				}
+				computeSem.release();
+				copySem.release();
+			}
+			done = true;
+			});
+		encodeThread = std::thread([&]() {
+			size_t count = 0;
+			while ((!done || count++ < frame) && alive) {
+				copySem.acquire();
+				{
+					std::lock_guard<std::mutex> guard(contextLock);
+					glfwMakeContextCurrent(window);
+					glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+					END_RANGE(copy_rid);
+					START_RANGE(encode_rid, "encode", RED);
+					for (int i = 0; i < renderCount; i++)
+						renderInstances[i]->encode();
+					END_RANGE(encode_rid);
+					glfwMakeContextCurrent(nullptr);
+				}
+				encodeSem.release();
+			}
+			});
+		sampleThread = std::thread([&]() {
+			double time = glfwGetTime();
+			T lastT = t;
+			while (!done && alive) {
+				std::this_thread::sleep_for(std::chrono::seconds(1));
+				rt64[ind] = (glfwGetTime() - time);
+				st64[ind] = (t - lastT);
+				ind = (ind + 1) & 0b111111;
+				pTime = glfwGetTime();
+				double rtsum = 0;
+				double stsum = 0;
+				for (double d : rt64)
+					rtsum += d;
+				for (double d : st64)
+					stsum += d;
+				{
+					std::lock_guard<std::mutex> guard(etrLock);
+					ETR = formatTime((int)(rtsum / stsum * (end - t))) + " remaining";
+				}
+				time = glfwGetTime();
+				lastT = t;
+			}
+			});
+		printThread = std::thread([&]() {
+			{
+				std::lock_guard<std::mutex> guard(etrLock);
+				len = printProgressBar<T>(0, 40, len, "Rendering:", ETR);
+			}
+			while (!done && alive) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				{
+					std::lock_guard<std::mutex> guard(etrLock);
+					len = printProgressBar<T>((t - start) / duration, 40, len, "Rendering:", ETR);
+				}
+			}
+			});
+
+		renderThread.join();
+		computeThread.join();
+		encodeThread.join();
+		printThread.join();
+		sampleThread.join();
+		tTime = glfwGetTime() - sTime;
+		END_RANGE(render_rid);
+		END_RANGE(copy_rid);
+		glfwMakeContextCurrent(window);
+	}
+	else
+	{
+		std::mutex contextLock, etrLock;
+		bsem computeSem(false), encodeSem(true), drawSem(false), copySem(false);
+		std::thread renderThread, computeThread, encodeThread, sampleThread, printThread;
+
+		glfwMakeContextCurrent(nullptr);
+
+		renderThread = std::thread([&]() {
+			while (t < end && alive) {
+				{
+					std::lock_guard<std::mutex> guard(contextLock);
+					glfwMakeContextCurrent(window);
+					for (int i = 0; i < renderCount; i++)
+						renderInstances[i]->draw(t, vecHead);
+					draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+					glfwMakeContextCurrent(nullptr);
+				}
+				encodeSem.acquire();
+				{
+					std::lock_guard<std::mutex> guard(contextLock);
+					glfwMakeContextCurrent(window);
+					for (int i = 0; i < renderCount; i++)
+						renderInstances[i]->postDraw();
+					copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+					glfwMakeContextCurrent(nullptr);
+				}
+				drawSem.release();
+				computeSem.acquire();
+			}
+			});
+		computeThread = std::thread([&]() {
+			while (t < end && alive) {
+				t += fourier->increment(spf, t);
+				drawSem.acquire();
+				{
+					std::lock_guard<std::mutex> guard(contextLock);
+					glfwMakeContextCurrent(window);
+					glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+					fourier->updateBuffers(vecHead);
+					fourier->readyBuffers();
+					glfwMakeContextCurrent(nullptr);
+				}
+				computeSem.release();
+				copySem.release();
+			}
+			});
+		encodeThread = std::thread([&]() {
+			while (t < end && alive) {
+				copySem.acquire();
+				{
+					std::lock_guard<std::mutex> guard(contextLock);
+					glfwMakeContextCurrent(window);
+					glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
+					for (int i = 0; i < renderCount; i++)
+						renderInstances[i]->encode();
+					glfwMakeContextCurrent(nullptr);
+				}
+				encodeSem.release();
+			}
+			});
+		sampleThread = std::thread([&]() {
+			double time = glfwGetTime();
+			T lastT = t;
+			while (t < end && alive) {
+				std::this_thread::sleep_for(std::chrono::seconds(1));
+				rt64[ind] = (glfwGetTime() - time);
+				st64[ind] = (t - lastT);
+				ind = (ind + 1) & 0b111111;
+				pTime = glfwGetTime();
+				double rtsum = 0;
+				double stsum = 0;
+				for (double d : rt64)
+					rtsum += d;
+				for (double d : st64)
+					stsum += d;
+				{
+					std::lock_guard<std::mutex> guard(etrLock);
+					ETR = formatTime((int)(rtsum / stsum * (end - t))) + " remaining";
+				}
+				time = glfwGetTime();
+				lastT = t;
+			}
+			});
+		printThread = std::thread([&]() {
+			{
+				std::lock_guard<std::mutex> guard(etrLock);
+				//len = printProgressBar<T>(0, 40, len, "Rendering:", ETR);
+			}
+			while (t < end && alive) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				{
+					std::lock_guard<std::mutex> guard(etrLock);
+					//len = printProgressBar<T>((t - start) / duration, 40, len, "Rendering:", ETR);
+				}
+			}
+			});
+
+		renderThread.join();
+		computeThread.join();
+		encodeThread.join();
+		printThread.join();
+		sampleThread.join();
+		tTime = glfwGetTime() - sTime;
+		glfwMakeContextCurrent(window);
+	}
+
+	if (alive)
+		std::cout << std::endl << "Total Time: " << formatTime(tTime) << std::endl;
+	else
+		std::cout << std::endl << "Program Terminated" << std::endl;
+	if (vecHead)
+		delete vecHead;
+
+	delete vector;
+	delete path;
+	if (fourier != nullptr)
+		delete fourier;
+	for (int i = 0; i < renderCount; i++)
+	{
+		free(renders[i].output_name);
+		delete renderInstances[i];
+	}
+
+	glDeleteProgram(solidShader);
+	if (hasFade)
+		glDeleteProgram(fadeShader);
+
+	glfwDestroyWindow(window);
+	glfwTerminate();
+	return 0;
+}
+
+
 extern "C" {
 	DLL_API int __cdecl render(float* data, size_t size, int width, int height, float dt, float duration, float start,
 		float pathLength, RenderParam* renders, size_t renderCount, int spf, int gpu, bool show, int flags)
 	{
-		std::cout << "Initializing Scene" << std::endl;
-		signal(SIGINT, keyboard_interrupt);
-
-		if (!glfwInit()) {
-			std::cerr << "Failed to initialize GLFW" << std::endl;
-			return -1;
-		}
-
-		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-		GLFWwindow* window = glfwCreateWindow(1, 1, "Fourier", NULL, NULL);
-		if (!window) {
-			std::cerr << "Failed to open GLFW window." << std::endl;
-			glfwTerminate();
-			return -1;
-		}
-
-		glfwMakeContextCurrent(window);
-		glewInit();
-		glfwSwapInterval(1);
-
-		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_FALSE);
-		if (flags & DEBUG_FLAG)
-		{
-			glEnable(GL_DEBUG_OUTPUT);
-			glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-			glDebugMessageCallback(glDebugOutput, nullptr);
-			glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_ERROR, GL_DONT_CARE, 0, nullptr, GL_TRUE);
-		}
-		else if (flags & WARN_FLAG)
-		{
-			glEnable(GL_DEBUG_OUTPUT);
-			glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
-		}
-
-		bool hasFade = false;
-		for (int i = 0; i < renderCount; i++)
-			for (int j = 0; j < 8; j++)
-				if (renders[i].views[i].valid && renders[i].views[j].path_fade)
-					hasFade = true;
-
-		GLuint solidShader = LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/solid.frag", flags & DEBUG_FLAG);
-		GLuint fadeShader = hasFade ? LoadShaders("./libs/shaders/2d.vert", "./libs/shaders/fade.frag", flags & DEBUG_FLAG) : 0;
-		if (!solidShader || (hasFade && !fadeShader)) {
-			std::cerr << "Failed to initialize shader program" << std::endl;
-			glfwDestroyWindow(window);
-			glfwTerminate();
-			return -1;
-		}
-
-		size_t vectorSize = size / 2;
-		size_t pathSize = (size_t)(pathLength / dt);
-
-		if (hasFade)
-		{
-			glUseProgram(fadeShader);
-			glUniform1f(glGetUniformLocation(fadeShader, "pathLength"), pathLength);
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		}
-
-		LineStrip* vector = new LineStrip(glm::vec2(0,0), vectorSize);
-		Lines* path = new Lines(glm::vec2(0,0), pathSize, hasFade);
-		
-		nc::NdArray<std::complex<float>> mags((std::complex<float>*)data, vectorSize);
-		nc::NdArray<int> freqs = nc::append(nc::arange(0, (int)(vectorSize / 2)), nc::arange(-(int)((vectorSize + 1) / 2), 0));
-		nc::NdArray<nc::uint32> inds = nc::argsort(-nc::abs(mags));
-		mags = mags[inds];
-		freqs = freqs[inds];
-		
-#if COMPILE_CUDA
-		FourierSeries* fourier = new CudaFourierSeries(vector, path, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, spf, gpu, flags & GPU_FLAG);
-#else
-		FourierSeries* fourier = new NpForuierSeries(vector, path, mags.dataRelease(), freqs.dataRelease(), vectorSize, dt, spf);
-#endif
-		if (!fourier->valid())
-		{
-			alive = false;
-		}
-
-		glEnable(GL_STENCIL_TEST);
-		glDisable(GL_DEPTH_TEST);
-		std::set<std::string> names;
-		for (int i = 0; i < renderCount; i++)
-		{
-			std::string n = renders[i].output_name;
-			std::string nn = n;
-			int k = 0;
-			while (names.find(nn) != names.end())
-			{
-				int ind = n.find_last_of('.');
-				nn = n.substr(0, ind) + std::to_string(++k) + n.substr(ind);
-			}
-			names.insert(nn);
-			char* nnp = (char*)malloc(sizeof(char) * (nn.size() + 1));
-			strcpy(nnp, nn.c_str());
-			renders[i].output_name = nnp;
-		}
-
-		std::vector<RenderInstance*> renderInstances;
-		for (int i = 0; i < renderCount; i++)
-		{
-			if (flags & RENDER_FLAG)
-				std::cout << "Instance" << std::to_string(i+1) << ": " << renders[i] << std::endl;
-			renderInstances.push_back(new RenderInstance(renders[i], solidShader, fadeShader, vector, path, width, height));
-		}
-
-		glClearColor(0, 0, 0, 1);
-		float t = start;
-		float end = start + duration;
-		if (t > 0)
-		{
-			fourier->init(t);
-			fourier->updateBuffers();
-		}
-
-		std::string ETR = "XX:XX remaining";
-		int ind = 0;
-		double sTime = glfwGetTime(), tTime = -1;
-		double pTime = glfwGetTime();
-		double rt64[64] = { 0 };
-		double st64[64] = { 0 };
-		int len = 0;
-		GLsync copy, step, draw;
-		GLsync* draws = (GLsync*)malloc(sizeof(GLsync) * renderCount);
-		glm::vec2* vecHead = nullptr;
-		for (int i = 0; i < renderCount; i++)
-			for (int j = 0; j < 8; j++)
-				if (renders[i].views[i].valid && renders[i].views[j].follow_path)
-				{
-					vecHead = new glm::vec2(0, 0);
-					break;
-				}
-		fourier->resetTrail(vecHead);
-		if (flags & PROFILE_FLAG)
-		{
-			std::mutex contextLock, etrLock;
-			bsem computeSem(false), encodeSem(true), drawSem(false), copySem(false);
-			std::thread renderThread, computeThread, encodeThread, sampleThread, printThread;
-
-			MAKE_RANGE(render_rid);
-			MAKE_RANGE(step_rid);
-			MAKE_RANGE(encode_rid);
-			MAKE_RANGE(copy_rid);
-			glfwMakeContextCurrent(nullptr);
-
-#if COMPILE_CUDA
-			cudaEvent_t stepEvent;
-			cudaEventCreate(&stepEvent);
-#endif
-			renderThread = std::thread([&]() {
-				size_t count = 0;
-				while ((!done || count++ < frame) && alive) {
-					END_RANGE(copy_rid);
-					{
-						std::lock_guard<std::mutex> guard(contextLock);
-						glfwMakeContextCurrent(window);
-						START_RANGE(render_rid, "render", GREEN);
-						for (int i = 0; i < renderCount; i++)
-							renderInstances[i]->draw(t, vecHead);
-						draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-						glfwMakeContextCurrent(nullptr);
-					}
-					encodeSem.acquire();
-					{
-						std::lock_guard<std::mutex> guard(contextLock);
-						glfwMakeContextCurrent(window);
-						for (int i = 0; i < renderCount; i++)
-							renderInstances[i]->postDraw();
-						copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-						glfwMakeContextCurrent(nullptr);
-					}
-					drawSem.release();
-					computeSem.acquire();
-				}
-			});
-			computeThread = std::thread([&]() {
-				while (t < end && alive) {
-					START_RANGE(step_rid, "step", AQUA);
-					t += fourier->increment(spf, t);
-					frame++;
-#if COMPILE_CUDA
-					cudaEventRecord(stepEvent, 0);
-					cudaStreamAddCallback(0, [](cudaStream_t stream, cudaError_t status, void* userData) {
-						END_RANGE(*((nvtxRangeId_t*)userData));
-					}, &step_rid, 0);
-#else
-					END_RANGE(step_rid);
-#endif
-					drawSem.acquire();
-					{
-						std::lock_guard<std::mutex> guard(contextLock);
-						glfwMakeContextCurrent(window);
-						glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-						END_RANGE(render_rid);
-						START_RANGE(copy_rid, "copy", YELLOW);
-						fourier->updateBuffers(vecHead);
-						fourier->readyBuffers();
-						glfwMakeContextCurrent(nullptr);
-					}
-					computeSem.release();
-					copySem.release();
-				}
-				done = true;
-			});
-			encodeThread = std::thread([&]() {
-				size_t count = 0;
-				while ((!done || count++ < frame) && alive) {
-					copySem.acquire();
-					{
-						std::lock_guard<std::mutex> guard(contextLock);
-						glfwMakeContextCurrent(window);
-						glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-						END_RANGE(copy_rid);
-						START_RANGE(encode_rid, "encode", RED);
-						for (int i = 0; i < renderCount; i++)
-							renderInstances[i]->encode();
-						END_RANGE(encode_rid);
-						glfwMakeContextCurrent(nullptr);
-					}
-					encodeSem.release();
-				}
-			});
-			sampleThread = std::thread([&]() {
-				double time = glfwGetTime();
-				float lastT = t;
-				while (!done && alive) {
-					std::this_thread::sleep_for(std::chrono::seconds(1));
-					rt64[ind] = (glfwGetTime() - time);
-					st64[ind] = (t - lastT);
-					ind = (ind + 1) & 0b111111;
-					pTime = glfwGetTime();
-					double rtsum = 0;
-					double stsum = 0;
-					for (double d : rt64)
-						rtsum += d;
-					for (double d : st64)
-						stsum += d;
-					{
-						std::lock_guard<std::mutex> guard(etrLock);
-						ETR = formatTime((int)(rtsum / stsum * (end - t))) + " remaining";
-					}
-					time = glfwGetTime();
-					lastT = t;
-				}				
-			});
-			printThread = std::thread([&]() {
-				{
-					std::lock_guard<std::mutex> guard(etrLock);
-					len = printProgressBar(0, 40, len, "Rendering:", ETR);
-				}
-				while (!done && alive) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(10));
-					{
-						std::lock_guard<std::mutex> guard(etrLock);
-						len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
-					}
-				}
-			});
-
-			renderThread.join();
-			computeThread.join();
-			encodeThread.join();
-			printThread.join();
-			sampleThread.join();
-			tTime = glfwGetTime() - sTime;
-			END_RANGE(render_rid);
-			END_RANGE(copy_rid);
-			glfwMakeContextCurrent(window);
-		}
-		else
-		{
-			std::mutex contextLock, etrLock;
-			bsem computeSem(false), encodeSem(true), drawSem(false), copySem(false);
-			std::thread renderThread, computeThread, encodeThread, sampleThread, printThread;
-
-			glfwMakeContextCurrent(nullptr);
-
-			renderThread = std::thread([&]() {
-				while (t < end && alive) {
-					{
-						std::lock_guard<std::mutex> guard(contextLock);
-						glfwMakeContextCurrent(window);
-						for (int i = 0; i < renderCount; i++)
-							renderInstances[i]->draw(t, vecHead);
-						draw = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-						glfwMakeContextCurrent(nullptr);
-					}
-					encodeSem.acquire();
-					{
-						std::lock_guard<std::mutex> guard(contextLock);
-						glfwMakeContextCurrent(window);
-						for (int i = 0; i < renderCount; i++)
-							renderInstances[i]->postDraw();
-						copy = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-						glfwMakeContextCurrent(nullptr);
-					}
-					drawSem.release();
-					computeSem.acquire();
-				}
-				});
-			computeThread = std::thread([&]() {
-				while (t < end && alive) {
-					t += fourier->increment(spf, t);
-					drawSem.acquire();
-					{
-						std::lock_guard<std::mutex> guard(contextLock);
-						glfwMakeContextCurrent(window);
-						glClientWaitSync(draw, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-						fourier->updateBuffers(vecHead);
-						fourier->readyBuffers();
-						glfwMakeContextCurrent(nullptr);
-					}
-					computeSem.release();
-					copySem.release();
-				}
-				});
-			encodeThread = std::thread([&]() {
-				while (t < end && alive) {
-					copySem.acquire();
-					{
-						std::lock_guard<std::mutex> guard(contextLock);
-						glfwMakeContextCurrent(window);
-						glClientWaitSync(copy, GL_SYNC_FLUSH_COMMANDS_BIT, TIMEOUT);
-						for (int i = 0; i < renderCount; i++)
-							renderInstances[i]->encode();
-						glfwMakeContextCurrent(nullptr);
-					}
-					encodeSem.release();
-				}
-				});
-			sampleThread = std::thread([&]() {
-				double time = glfwGetTime();
-				float lastT = t;
-				while (t < end && alive) {
-					std::this_thread::sleep_for(std::chrono::seconds(1));
-					rt64[ind] = (glfwGetTime() - time);
-					st64[ind] = (t - lastT);
-					ind = (ind + 1) & 0b111111;
-					pTime = glfwGetTime();
-					double rtsum = 0;
-					double stsum = 0;
-					for (double d : rt64)
-						rtsum += d;
-					for (double d : st64)
-						stsum += d;
-					{
-						std::lock_guard<std::mutex> guard(etrLock);
-						ETR = formatTime((int)(rtsum / stsum * (end - t))) + " remaining";
-					}
-					time = glfwGetTime();
-					lastT = t;
-				}
-				});
-			printThread = std::thread([&]() {
-				{
-					std::lock_guard<std::mutex> guard(etrLock);
-					len = printProgressBar(0, 40, len, "Rendering:", ETR);
-				}
-				while (t < end && alive) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(10));
-					{
-						std::lock_guard<std::mutex> guard(etrLock);
-						len = printProgressBar((t - start) / duration, 40, len, "Rendering:", ETR);
-					}
-				}
-				});
-
-			renderThread.join();
-			computeThread.join();
-			encodeThread.join();
-			printThread.join();
-			sampleThread.join();
-			tTime = glfwGetTime() - sTime;
-			glfwMakeContextCurrent(window);
-		}
-		
-		if (alive)
-			std::cout << std::endl << "Total Time: " << formatTime(tTime) << std::endl;
-		else
-			std::cout << std::endl << "Program Terminated" << std::endl;
-		if(vecHead)
-			delete vecHead;
-
-		delete vector;
-		delete path;
-		if(fourier != nullptr)
-			delete fourier;
-		for (int i = 0; i < renderCount; i++)
-		{
-			free(renders[i].output_name);
-			delete renderInstances[i];
-		}
-
-		glDeleteProgram(solidShader);
-		if (hasFade)
-			glDeleteProgram(fadeShader);
-
-		glfwDestroyWindow(window);
-		glfwTerminate();
-		return 0;
+		return _render<float>(data, size, width, height, dt, duration, start, pathLength, renders, renderCount, spf, gpu, show, flags);
+	}
+	DLL_API int __cdecl render_double(double* data, size_t size, int width, int height, double dt, double duration, double start,
+		double pathLength, RenderParam* renders, size_t renderCount, int spf, int gpu, bool show, int flags)
+	{
+		return _render<double>(data, size, width, height, dt, duration, start, pathLength, renders, renderCount, spf, gpu, show, flags);
 	}
 }

@@ -3,21 +3,23 @@
 #include "core.h"
 #include <iostream>
 
+using namespace math;
+
 struct RenderParam {
 	char* output_name;
 	int width, height, fps;
 	struct View {
 		bool valid = false;
 		bool no_background;
-		glm::vec3 background_color, border_color;
+		fvec3 background_color, border_color;
 		float border_width;
 		bool border_on_other_views;
 
 		int screen_x, screen_y, screen_width, screen_height;
-		float center_x, center_y, zoom;
+		double center_x, center_y, zoom;
 
 		float vector_width, path_width;
-		glm::vec3 vector_color, path_color;
+		fvec3 vector_color, path_color;
 		bool follow_path, path_fade;
 	} views[8];
 };

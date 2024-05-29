@@ -87,6 +87,11 @@ group_render.add_argument('-fp', '--follow-path', action='store_true', help="cen
 
 group_render.add_argument('-g', '--gpu', type=str, nargs='?', const='0', help='use Cuda to accelerate rendering process (use a number to specify a GPU or ? to list avaliable GPUs)')
 
+class lowercase_list(list):
+    def __contains__(self, other):
+        return super(lowercase_list,self).__contains__(other.lower())
+group_render.add_argument('--precision', type=str, default='single', choices=lowercase_list(['single', 'double']), help='precision with which to perform the rendering (single, double)')
+
 #Debug Parameter
 group_debug = parser.add_argument_group("Debug Parameter")
 group_debug.add_argument('--info', type=str, default='', help='d for Debug, p for Path, r for Render, g for GPU, w for warnings')
@@ -100,6 +105,7 @@ print('Loading Parameters')
 args = parser.parse_args()
 
 GPU = args.gpu
+PRECISION = args.precision
 DENSITY = args.density
 POINTS = args.points
 VECTOR_COLOR = args.vector_color
@@ -171,6 +177,7 @@ if args.json or re.search('\\.(json)$', INPUT)!=None:
 			DIMENSION = root['input'].get('dimension', DIMENSION)
 		
 		if root.get('render', None) != None:
+			PRECISION = root['render'].get('precision', PRECISION)
 			TIMESCALE = root['render'].get('timescale', TIMESCALE)
 			DURATION = root['render'].get('duration', DURATION)
 			START = root['render'].get('start', START)
@@ -195,6 +202,12 @@ if GPU != None:
 		GPU = int(GPU)
 else:
 	GPU = -1
+
+PRECISION = PRECISION.lower()
+if PRECISION != 'single' and PRECISION != 'double':
+	print('Err: Only single and double precision is allowed')
+	exit(-1)
+	
 
 if SVG or none_set and re.search('\\.(svg)$', INPUT)!=None:
 	SVG, BITMAP, VIDEO, PATH = (True, False, False, False)
@@ -294,4 +307,4 @@ start = strMath(START, var)
 #memLim = strToMemory(args.memory_limit)
 
 print('Loading Libraries')
-renderPath(params, path, dims, timescale/60, duration, start, pathLength, spf, GPU, False, flags)
+renderPath(params, path, dims, timescale/60, duration, start, pathLength, spf, GPU, PRECISION, False, flags)

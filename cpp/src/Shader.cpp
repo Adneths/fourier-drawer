@@ -2,16 +2,19 @@
 
 enum ShaderType {
     vertex,
-    fragment
+    fragment,
+    compute
 };
 
-GLuint LoadSingleShader(const char* shaderFilePath, ShaderType type, bool debug = false) {
+GLuint LoadSingleShader(const char* shaderFilePath, ShaderType type, bool debug) {
     // Create a shader id.
     GLuint shaderID = 0;
     if (type == vertex)
         shaderID = glCreateShader(GL_VERTEX_SHADER);
     else if (type == fragment)
         shaderID = glCreateShader(GL_FRAGMENT_SHADER);
+    else if (type == compute)
+        shaderID = glCreateShader(GL_COMPUTE_SHADER);
 
     // Try to read shader codes from the shader file.
     std::string shaderCode;
@@ -57,9 +60,49 @@ GLuint LoadSingleShader(const char* shaderFilePath, ShaderType type, bool debug 
         else if (type == fragment)
             if (debug)
                 printf("Successfully compiled fragment shader!\n");
+        else if (type == compute)
+            if (debug)
+                printf("Successfully compiled compute shader!\n");
     }
 
     return shaderID;
+}
+GLuint LoadShaders(const char* computeFilePath, bool debug) {
+    GLuint computeShaderID = LoadSingleShader(computeFilePath, compute, debug);
+
+    if (computeShaderID == 0) return 0;
+
+    GLint Result = GL_FALSE;
+    int InfoLogLength;
+
+    // Link the program.
+    if (debug)
+        printf("Linking program\n");
+    GLuint programID = glCreateProgram();
+    glAttachShader(programID, computeShaderID);
+    glLinkProgram(programID);
+
+    // Check the program.
+    glGetProgramiv(programID, GL_LINK_STATUS, &Result);
+    glGetProgramiv(programID, GL_INFO_LOG_LENGTH, &InfoLogLength);
+    if (InfoLogLength > 0) {
+        std::vector<char> ProgramErrorMessage(InfoLogLength + 1);
+        glGetProgramInfoLog(programID, InfoLogLength, NULL, ProgramErrorMessage.data());
+        std::string msg(ProgramErrorMessage.begin(), ProgramErrorMessage.end());
+        std::cerr << msg << std::endl;
+        glDeleteProgram(programID);
+        return 0;
+    }
+    else {
+        if (debug)
+            printf("Successfully linked program!\n");
+    }
+
+    // Detach and delete the shaders as they are no longer needed.
+    glDetachShader(programID, computeShaderID);
+    glDeleteShader(computeShaderID);
+
+    return programID;
 }
 
 GLuint LoadShaders(const char* vertexFilePath, const char* fragmentFilePath, bool debug = false) {

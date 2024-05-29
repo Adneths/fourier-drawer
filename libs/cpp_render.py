@@ -26,9 +26,9 @@ class View(BaseStructure):
 		('screen_y', c_int),
 		('screen_width', c_int),
 		('screen_height', c_int),
-		('center_x', c_float),
-		('center_y', c_float),
-		('zoom', c_float),
+		('center_x', c_double),
+		('center_y', c_double),
+		('zoom', c_double),
 		('vector_width', c_float),
 		('path_width', c_float),
 		('vector_color', Vec3),
@@ -55,7 +55,7 @@ def printGPUInfo():
 	if info_lib.printGPUInfo() != 0:
 		print("Unable to get GPU info")
 
-def renderPath(params, path, dims, dt, duration, start, pathLength, spf, GPU, show, flags):
+def renderPath(params, path, dims, dt, duration, start, pathLength, spf, GPU, precision, show, flags):
 	libname = os.path.join(pathlib.Path().absolute(), 'libs\\cuda_render.dll' if GPU != -1 else 'libs\\render.dll')
 	for p in os.environ.get('PATH').split(';'):
 		try:
@@ -64,12 +64,27 @@ def renderPath(params, path, dims, dt, duration, start, pathLength, spf, GPU, sh
 			pass;
 	render_lib = CDLL(libname)
 
-	#render(float* data, size_t size, int width, int height, float dt, float duration, float start, float pathLength, RenderParam* renders, size_t renderCount, int spf, int gpu, bool show, int flags)
-	render_lib.render.argtypes = [POINTER(c_float), c_size_t, c_int, c_int, c_float, c_float, c_float, c_float, POINTER(RenderParam), c_size_t, c_int, c_int, c_bool, c_int]
+	if precision == 'single':
+
+		#render(float* data, size_t size, int width, int height, float dt, float duration, float start, float pathLength, RenderParam* renders, size_t renderCount, int spf, int gpu, bool show, int flags)
+		render_lib.render.argtypes = [POINTER(c_float), c_size_t, c_int, c_int, c_float, c_float, c_float, c_float, POINTER(RenderParam), c_size_t, c_int, c_int, c_bool, c_int]
+		
+		X = np.fft.fft(path)/len(path)
+		data = np.empty((X.size*2), dtype=np.float32)
+		data[0::2] = np.real(X)
+		data[1::2] = np.imag(X)
+		
+		render_lib.render((c_float * len(data))(*data), len(data), dims[0], dims[1], dt, duration, start, pathLength, (RenderParam * len(params))(*params), len(params), spf, GPU, show, flags)
 	
-	X = np.fft.fft(path)/len(path)
-	data = np.empty((X.size*2), dtype=float)
-	data[0::2] = np.real(X)
-	data[1::2] = np.imag(X)
-	
-	render_lib.render((c_float * len(data))(*data), len(data), dims[0], dims[1], dt, duration, start, pathLength, (RenderParam * len(params))(*params), len(params), spf, GPU, show, flags)
+	elif precision == 'double':
+
+		#render_double(double* data, size_t size, int width, int height, double dt, double duration, double start, double pathLength, RenderParam* renders, size_t renderCount, int spf, int gpu, bool show, int flags)
+		render_lib.render_double.argtypes = [POINTER(c_double), c_size_t, c_int, c_int, c_double, c_double, c_double, c_double, POINTER(RenderParam), c_size_t, c_int, c_int, c_bool, c_int]
+		
+		X = np.fft.fft(path)/len(path)
+		data = np.empty((X.size*2), dtype=np.float64)
+		data[0::2] = np.real(X)
+		data[1::2] = np.imag(X)
+		
+		render_lib.render_double((c_double * len(data))(*data), len(data), dims[0], dims[1], dt, duration, start, pathLength, (RenderParam * len(params))(*params), len(params), spf, GPU, show, flags)
+		

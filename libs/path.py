@@ -184,8 +184,9 @@ def svgToPath(file, base_density=7, N=-1, tosave=False):
 	root = tree.getroot()
 	namespace = get_namespace(tree.getroot())
 	path_factors = []
+	raw_path_factors = []
 	tLen = svgToPathCountLen(root, (0,0), (1,1), namespace)
-	svgToPathHelper(path_factors, root, (0,0), (1,1), tLen, namespace, base_density, N, [] if tosave else None)
+	svgToPathHelper(path_factors, root, (0,0), (1,1), tLen, namespace, base_density, N, raw_path_factors if tosave else None)
 	return generatePointsAndMergePaths(path_factors), raw_path_factors
 def svgToPathCountLen(root, tran, scal, namespace):
 	if 'transform' in root.attrib:

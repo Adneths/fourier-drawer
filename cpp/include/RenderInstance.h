@@ -9,6 +9,23 @@
 #include "core.h"
 #include <vector>
 
+using namespace math;
+
+template <typename T>
+struct ViewInstance {
+	bool valid;
+	int id;
+	mat3<T> viewMtx, invViewMtx;
+	T offsetX, offsetY, xScale, yScale, zoom;
+	fvec3 vectorColor, pathColor, backgroundColor, borderColor;
+	float vectorWidth, pathWidth, borderWidth;
+
+	bool followPath, pathFade, drawBackground, drawBorderOnOther;
+
+	Rect<T>* rect;
+};
+
+template <typename T>
 class RenderInstance {
 private:
 	const char* output_name;
@@ -20,28 +37,16 @@ private:
 
 	GLuint solidShader, fadeShader;
 
-	LineStrip* vector;
-	Lines* trail;
+	LineStrip<T>* vector;
+	Lines<T>* trail;
 
-	struct ViewInstance {
-		bool valid;
-		int id;
-		glm::mat3 viewMtx, invViewMtx;
-		float offsetX, offsetY, xScale, yScale, zoom;
-		glm::vec3 vectorColor, pathColor, backgroundColor, borderColor;
-		float vectorWidth, pathWidth, borderWidth;
+	ViewInstance<T> views[8];
 
-		bool followPath, pathFade, drawBackground, drawBorderOnOther;
-
-		Rect* rect;
-	} views[8];
-
-	std::vector<ViewInstance*> globalBorders;
+	std::vector<ViewInstance<T>*> globalBorders;
 public:
-
-	RenderInstance(RenderParam params, GLuint solidShader, GLuint fadeShader, LineStrip* vector, Lines* trail, float width, float height);
+	RenderInstance(RenderParam params, GLuint solidShader, GLuint fadeShader, LineStrip<T>* vector, Lines<T>* trail, int width, int height);
 	~RenderInstance();
-	void draw(const float& time, glm::vec2* pos);
+	void draw(const T& time, vec2<T>* pos);
 	void postDraw();
 	void encode();
 };

@@ -4,7 +4,6 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}\\cmake")
 
 enable_language(CUDA)
 find_package(CUDAToolkit REQUIRED)
-#set(CMAKE_CUDA_ARCHITECTURES 50;60;61;75)
 
 find_package(FFmpeg REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -59,7 +58,6 @@ set (HEADERS
 add_library(render SHARED ${SOURCES} ${HEADERS} include/NpFourierSeries.h src/NpFourierSeries.cpp)
 target_link_libraries(render PUBLIC ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp ${AVCODEC_LIBRARIES} ${AVUTIL_LIBRARIES} ${AVFORMAT_LIBRARIES} ${SWSCALE_LIBRARIES})
 target_compile_features(render PRIVATE cxx_std_17)
-#target_compile_definitions(cuda_render PRIVATE PROFILE)
 
 add_library(cuda_render SHARED ${SOURCES} ${HEADERS} include/CudaFourierSeries.cuh src/CudaFourierSeries.cu)
 target_link_libraries(cuda_render PUBLIC CUDA::cudart ${OPENGL_LIBRARIES} glew32s.lib glfw3.lib NumCpp::NumCpp ${AVCODEC_LIBRARIES} ${AVUTIL_LIBRARIES} ${AVFORMAT_LIBRARIES} ${SWSCALE_LIBRARIES})
@@ -67,10 +65,12 @@ target_compile_features(cuda_render PRIVATE cxx_std_17)
 target_compile_definitions(cuda_render PRIVATE COMPILE_CUDA)
 target_compile_definitions(cuda_render PRIVATE PROFILE)
 target_compile_options(cuda_render PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=esa_on_defaulted_function_ignored>)
+#set_target_properties(cuda_render PROPERTIES CUDA_ARCHITECTURES "50;60;61;75")
+set_target_properties(cuda_render PROPERTIES CUDA_ARCHITECTURES "60;61;75")
 
 add_library(cuda_info SHARED include/constant.h src/cudaInfo.cu)
 target_link_libraries(cuda_info PUBLIC CUDA::cudart)
-#target_compile_features(cuda_info PRIVATE cxx_std_17)
+target_compile_features(cuda_info PRIVATE cxx_std_17)
 target_compile_definitions(cuda_info PRIVATE COMPILE_CUDA)
 
 add_custom_command(TARGET render POST_BUILD

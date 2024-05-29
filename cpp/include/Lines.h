@@ -2,11 +2,13 @@
 
 #include "core.h"
 
+using namespace math;
 
+template <typename T>
 class Lines {
 protected:
 	bool timestamped;
-	GLuint VBO, VAO;
+	GLuint VBO, VAO, fillShader;
 	size_t count;
 public:
 	/**
@@ -14,15 +16,18 @@ public:
 	 * @param count the number of lines
 	 * @param the color of the line strip
 	 */
-	Lines(glm::vec2 vertex, uint32_t count, bool timestamped);
+	Lines(vec2<T> vertex, uint32_t count, bool timestamped, GLuint fillShader);
 	/**
 	 * @param vertices the vertex values to be copied
 	 * @param count the number of lines
 	 * @param the color of the line strip
 	 */
 	//Lines(float* vertices, uint32_t count, bool timestamped);
-	void draw(const GLuint shader, const glm::mat3 &viewMtx, const glm::vec2& offset, const glm::vec3 &color, const float linewidth);
+	void draw(const GLuint shader, const mat3<T> &viewMtx, const vec2<T>& offset, const fvec3 &color, const float linewidth);
 	~Lines();
+
+	void fill(vec3<T> val);
+	void fill(T val[3]);
 
 	GLuint getBuffer();
 	/**

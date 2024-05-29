@@ -148,6 +148,7 @@ foreach (_component ${FFmpeg_FIND_COMPONENTS})
   list(APPEND _FFmpeg_REQUIRED_VARS ${_component}_LIBRARIES ${_component}_INCLUDE_DIRS)
 endforeach ()
 
+#[[
 message("FFmpeg: ${FFMPEG_LIBRARIES}")
 message("FFmpeg: ${FFMPEG_INCLUDE_DIRS}")
 message("AVCodec: ${AVCODEC_LIBRARIES}")
@@ -162,6 +163,7 @@ message("PostProcess: ${POSTPROCESS_LIBRARIES}")
 message("PostProcess: ${POSTPROCESS_INCLUDE_DIRS}")
 message("SWScale: ${SWSCALE_LIBRARIES}")
 message("SWScale: ${SWSCALE_INCLUDE_DIRS}")
+#]]
 
 # Give a nice error message if some of the required vars are missing.
 find_package_handle_standard_args(FFmpeg DEFAULT_MSG ${_FFmpeg_REQUIRED_VARS})

@@ -2,13 +2,15 @@
 
 #include "core.h"
 
+using namespace math;
 
+template <typename T>
 class Rect {
 protected:
 	GLuint VBO, VAO;
 public:
 	Rect();
-	Rect(float vertices[8]);
-	void draw(const GLuint shader, const glm::mat3& viewMtx, const glm::vec2& offset, const glm::vec3& color, const float linewidth, const bool fill);
+	Rect(T vertices[8]);
+	void draw(const GLuint shader, const mat3<T>& viewMtx, const vec2<T>& offset, const fvec3& color, const float linewidth, const bool fill);
 	~Rect();
 };

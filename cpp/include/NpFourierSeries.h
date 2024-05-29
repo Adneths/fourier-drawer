@@ -6,27 +6,29 @@
 #include "Lines.h"
 #include "NumCpp.hpp"
 
+using namespace math;
 
-class NpForuierSeries : public FourierSeries {
+template <typename T>
+class NpFourierSeries : public FourierSeries<T> {
 public:
-	NpForuierSeries(LineStrip* vectorLine, Lines* pathLine, std::complex<float>* mags, int* freqs, size_t size, float dt, size_t cacheSize);
-	~NpForuierSeries();
-	float increment(size_t count, float time) override;
-	void updateBuffers(glm::vec2* vecHeadPtr = nullptr) override;
+	NpFourierSeries(LineStrip<T>* vectorLine, Lines<T>* pathLine, std::complex<T>* mags, int* freqs, size_t size, T dt, size_t cacheSize);
+	~NpFourierSeries();
+	T increment(size_t count, T time) override;
+	void updateBuffers(vec2<T>* vecHeadPtr = nullptr) override;
 	void readyBuffers() override;
-	void resetTrail(glm::vec2* vecHeadPtr = nullptr) override;
-	void init(float time) override;
+	void resetTrail(vec2<T>* vecHeadPtr = nullptr) override;
+	void init(T time) override;
 private:
 	size_t head;
-	float last[3];
+	T last[3];
 
-	nc::NdArray<std::complex<float>> vector, step;
+	nc::NdArray<std::complex<T>> vector, step;
 	nc::NdArray<int> freqsArr;
-	float dt;
-	float* pathCache;
+	T dt;
+	T* pathCache;
 	size_t cacheSize;
-	LineStrip* vectorLine;
-	Lines* pathLine;
+	LineStrip<T>* vectorLine;
+	Lines<T>* pathLine;
 
 	size_t lineWidth, cacheFloatSize, pathBufferSize;
 };

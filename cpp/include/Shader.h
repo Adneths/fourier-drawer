@@ -10,4 +10,5 @@
 #include <string>
 #include <vector>
 
+GLuint LoadShaders(const char* computeFilePath, bool debug);
 GLuint LoadShaders(const char* vertex_shader, const char* fragment_shade, bool debug);
