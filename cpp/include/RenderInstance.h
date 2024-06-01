@@ -44,7 +44,7 @@ private:
 
 	std::vector<ViewInstance<T>*> globalBorders;
 public:
-	RenderInstance(RenderParam params, GLuint solidShader, GLuint fadeShader, LineStrip<T>* vector, Lines<T>* trail, int width, int height);
+	RenderInstance(RenderParam params, GLuint solidShader, GLuint fadeShader, LineStrip<T>* vector, Lines<T>* trail, int canvas_width, int canvas_height);
 	~RenderInstance();
 	void draw(const T& time, vec2<T>* pos);
 	void postDraw();

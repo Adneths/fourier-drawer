@@ -6,6 +6,5 @@ scipy
 svgpathtools
 ffmpeg
 
-scikit_video
+opencv-python-headless
 PyOpenGL
-numexpr

@@ -68,12 +68,12 @@ template <typename T, typename T2, typename T3>
 __global__ void cudaIncrement1024(T2* mags, int* freqs, T* pathCache, size_t size, T dt, size_t count)
 {
 	int tx = threadIdx.x;
+	int tX = blockDim.x;
 	int id = blockIdx.x * blockDim.x + tx;
 
 	T2 v, s;
 	if (id < size)
 	{
-		//v = { mags[id * 2], mags[id * 2 + 1] };
 		v = mags[id];
 		s = { cos(dt * freqs[id]), sin(dt * freqs[id]) };
 	}
@@ -83,40 +83,27 @@ __global__ void cudaIncrement1024(T2* mags, int* freqs, T* pathCache, size_t siz
 		s = { 0, 0 };
 	}
 
-	//float2 psum = make_float2(0, 0);
 	T a, b;
+	b = 0;
 	for (unsigned int i = 0; i < count; i++)
 	{
 		v = { v.x * s.x - v.y * s.y, v.x * s.y + v.y * s.x };
-		T2 val = blockReduceSum<T2>(v, i >> 5);
-		//if (tx == i) {
-		//	psum = val;
-		//}
+		T2 val = blockReduceSum<T2>(v, (i%(tX>>1)) >> 4);
 		T f = (tx & 0b1) == 0 ? val.x : val.y;
-		if ((tx >> 1) == (i & 0x1ff)) {
-			if ((i & 0x200) != 0)
-				b = f;
-			else
+		if ((tx>>1) == (i % (tX>>1))) {
+			if (i < (tX>>1))
 				a = f;
+			else
+				b = f;
 		}
 	}
 	if (id < size)
-	{
 		mags[id] = v;
-		//mags[id * 2] = v.x;
-		//mags[id * 2 + 1] = v.y;
-	}
 
-	if (tx < 2 * count)
+	if (tx < 2*count)
 		atomicAdd(&pathCache[tx], a);
-	if (tx < 2 * count - 1024)
-		atomicAdd(&pathCache[tx + 1024], b);
-
-	//if (tx < count)
-	//{
-	//	atomicAdd(&pathCache[tx * 2], psum.x);
-	//	atomicAdd(&pathCache[tx * 2 + 1], psum.y);
-	//}
+	if (tx < 2*count - tX)
+		atomicAdd(&pathCache[tx + tX], b);
 }
 
 template <typename T, typename T2, typename T3>
@@ -369,7 +356,7 @@ CudaFourierSeries<T, T2, T3>::~CudaFourierSeries()
 
 template <typename T, typename T2, typename T3>
 void CudaFourierSeries<T, T2, T3>::init(T time) {
-	cudaIncrement1024<T,T2,T3><<<(size + (this->incrementBlockSize) - 1) / (this->incrementBlockSize), (this->incrementBlockSize) >>>
+	cudaIncrement1024<T,T2,T3><<<(size + (this->incrementBlockSize) - 1) / (this->incrementBlockSize), (this->incrementBlockSize)>>>
 		((T2*)deviceMags, deviceFreqs, devicePathCache, size, time, 1);
 	cudaDeviceSynchronize();
 	this->time = time;
@@ -380,8 +367,8 @@ T CudaFourierSeries<T, T2, T3>::increment(size_t count, T time)
 	cudaMemset(devicePathCache, 0, sizeof(T) * cacheSize * 2ull);
 	for (int i = 0; i < count; i += (this->incrementBlockSize))
 	{
-		cudaIncrement1024<T,T2,T3><<<(size + (this->incrementBlockSize) - 1) / (this->incrementBlockSize), (this->incrementBlockSize) >>>
-			((T2*)deviceMags, deviceFreqs, devicePathCache + i * 2, size, dt, std::min(static_cast<size_t>((this->incrementBlockSize)), count - i));
+		cudaIncrement1024<T,T2,T3><<<(size + (this->incrementBlockSize) - 1) / (this->incrementBlockSize), (this->incrementBlockSize)>>>
+			((T2*)deviceMags, deviceFreqs, devicePathCache + i * 2, size, dt, std::min(static_cast<size_t>(this->incrementBlockSize), count - i));
 	}
 	this->time = time;
 	return count * dt;

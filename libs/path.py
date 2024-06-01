@@ -1,7 +1,4 @@
 import numpy as np
-import numpy
-numpy.float = np.float64
-numpy.int = numpy.int_
 import scipy
 
 from svgpathtools import parse_path
@@ -12,7 +9,7 @@ import potrace
 import re
 import subprocess
 import time
-import skvideo.io
+import cv2
 
 from .util import printProgressBar, EstimateTimeRemaining
 
@@ -293,7 +290,7 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, tosave=False)
 		total = int(m.group(1))
 	else:
 		total = -1
-	reader = skvideo.io.vreader(file)
+	cap = cv2.VideoCapture(file)
 	frames = []
 	raw_path_factors = [] if tosave else None
 	
@@ -301,7 +298,11 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, tosave=False)
 	
 	count = 0
 	prev_path = np.zeros((0))
-	for frame in reader:
+	while True:
+		ret, frame = cap.read()
+		if not ret:
+			break
+			
 		count+=1
 		if dims is None:
 			dims = (frame.shape[1],frame.shape[0])
@@ -322,7 +323,8 @@ def videoToPath(file, base_density=7, N=-1, dims=None, border=0.9, tosave=False)
 			print('\rTracing frame {}'.format(len(frames)), end = '')
 		else:
 			printProgressBar(len(frames)/total, 'Tracing frames', '| {} remaining         '.format(ETR.formatted_seconds_remaining()))
-	printProgressBar(len(frames)/total, 'Tracing frames', '| 00:00 remaining         ')
+	printProgressBar(1, 'Tracing frames', '| 00:00 remaining         ')
+	cap.release()
 	print()
 	
 	prog = 0

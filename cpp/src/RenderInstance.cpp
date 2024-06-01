@@ -3,7 +3,7 @@ template class RenderInstance<float>;
 template class RenderInstance<double>;
 
 template <typename T>
-RenderInstance<T>::RenderInstance(RenderParam params, GLuint solidShader, GLuint fadeShader, LineStrip<T>* vector, Lines<T>* trail, int width, int height)
+RenderInstance<T>::RenderInstance(RenderParam params, GLuint solidShader, GLuint fadeShader, LineStrip<T>* vector, Lines<T>* trail, int canvas_width, int canvas_height)
 	: output_name(params.output_name), width(params.width), height(params.height), views(),
 		solidShader(solidShader), fadeShader(fadeShader), vector(vector), trail(trail) {
 	multiBuffer = new MultiBuffer(params.width, params.height, 2);
@@ -25,16 +25,16 @@ RenderInstance<T>::RenderInstance(RenderParam params, GLuint solidShader, GLuint
 		if (iview.valid = pview.valid) {
 			//Vertical flip
 			iview.viewMtx = mat3<T>(
-				T(2.0 * (iview.xScale = std::min(width, height) / params.width) * pview.zoom),
+				T(2.0 * (iview.xScale = double(std::min(canvas_width, canvas_height)) / params.width) * pview.zoom),
 				0,
 				0,
 
 				0,
-				T(-2.0 * (iview.yScale = std::min(width, height) / params.height) * pview.zoom),
+				T(-2.0 * (iview.yScale = double(std::min(canvas_width, canvas_height)) / params.height) * pview.zoom),
 				0,
 
-				T(iview.offsetX = 2.0f * (pview.center_x + double(pview.screen_width - params.width) / 2 + pview.screen_x) / params.width),
-				T(iview.offsetY = 2.0f * (pview.center_y + double(pview.screen_height - params.height) / 2 + pview.screen_y) / params.height),
+				T(iview.offsetX = 2.0 * (pview.center_x + double(pview.screen_width - params.width) / 2 + pview.screen_x) / params.width),
+				T(iview.offsetY = 2.0 * (pview.center_y + double(pview.screen_height - params.height) / 2 + pview.screen_y) / params.height),
 				1.0f
 			);
 
@@ -107,7 +107,7 @@ void RenderInstance<T>::draw(const T& time, vec2<T>* pos) {
 			view.rect->draw(solidShader, view.viewMtx, vec2<T>(0), view.backgroundColor, 1, true);
 		}
 
-		vec2<T> offset = view.followPath ? view.zoom * 2.0f * vec2<T>(-pos->x, pos->y) : vec2<T>(0);
+		vec2<T> offset = view.followPath ? view.zoom * T(2.0) * vec2<T>(-pos->x, pos->y) : vec2<T>(0);
 		vector->draw(solidShader, view.viewMtx, offset, view.vectorColor, view.vectorWidth);
 		GLuint pathShader = view.pathFade ? fadeShader : solidShader;
 		glUseProgram(pathShader);
@@ -116,7 +116,7 @@ void RenderInstance<T>::draw(const T& time, vec2<T>* pos) {
 
 		for (const struct ViewInstance<T>* vi : globalBorders) {
 			if (vi->id == i) continue;
-			vec2<T> offset = vi->followPath ? view.zoom * vi->zoom * 4.0f * mat2<T>(vi->invViewMtx) * vec2<T>(pos->x, pos->y) : vec2<T>(0);
+			vec2<T> offset = vi->followPath ? view.zoom * vi->zoom * T(4.0) * mat2<T>(vi->invViewMtx) * vec2<T>(pos->x, pos->y) : vec2<T>(0);
 			vi->rect->draw(solidShader, view.viewMtx, offset, vi->borderColor, vi->borderWidth, false);
 		}
 
