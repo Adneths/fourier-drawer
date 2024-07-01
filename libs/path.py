@@ -212,8 +212,9 @@ def imageToPath(data, base_density=7, N=-1, showProgress=True):
 		R = np.sqrt(data.shape[0]**2+data.shape[1]**2)/2
 		scale = 300000/(R**2*np.pi)
 		if N < 0:
-			N = 2*np.pi*R * base_density*scale
-		return np.exp(1j*np.linspace(0,2*np.pi,N))
+			N = int(2*np.pi*R * base_density*scale)
+		return np.zeros((N), dytpe=np.complex128)
+		# return np.exp(1j*np.linspace(0,2*np.pi,N))
 	else:
 		paths = []
 		path = parse_path(''.join(pStrs));
